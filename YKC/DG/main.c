@@ -1549,6 +1549,292 @@ void uartinput8(void)
 
 
 
+
+
+//////////////////////////////////////UARTbuffer to SPIbuffer//////////////////////////////////////////////////////////////////
+void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+
+
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 1)  // COM1 처리
+    {
+
+		memcpy(parsebuf, bufptr, 46);
+
+
+        ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+        ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+        parsebuf[len-45] = 0x01;
+
+        memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+        memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+        chk = Transmit_checksum(&parsebuf[len-46], 22);
+        parsebuf[len-24] = chk;
+
+
+        memcpy(&_DG_tx_buf[1][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00, 46);
+        memset(val_savebuf, 0x00, 26);
+
+
+    }
+
+}
+
+void COM_Input_Parse2(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 2)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x02;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		 chk = Transmit_checksum(&parsebuf[len-46], 22);
+		 parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[2][1],&parsebuf[len-45], 22);
+
+
+        memset(parsebuf, 0x00, 46);
+        memset(val_savebuf, 0x00, 26);
+
+	}
+}
+
+void COM_Input_Parse3(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 3)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x03;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		 chk = Transmit_checksum(&parsebuf[len-46], 22);
+		 parsebuf[len-24] = chk;
+
+
+
+		memcpy(&_DG_tx_buf[3][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00, sizeof(parsebuf));
+        memset(val_savebuf, 0x00, sizeof(parsebuf));
+	}
+
+}
+
+void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+
+
+	if (com_port == 4)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x04;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		chk = Transmit_checksum(&parsebuf[len-46], 22);
+		parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[4][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00, 48);
+        memset(val_savebuf, 0x00, 48);
+	}
+}
+
+void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 5)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x05;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		chk = Transmit_checksum(&parsebuf[len-46], 22);
+		parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[5][1],&parsebuf[len-45], 22);
+
+
+        memset(parsebuf, 0x00,48);
+        memset(val_savebuf, 0x00, 48);
+	}
+}
+
+void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+
+	if (com_port == 6)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x06;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		chk = Transmit_checksum(&parsebuf[len-46], 22);
+		parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[6][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00, 48);
+        memset(val_savebuf, 0x00, 48);
+	}
+}
+
+void COM_Input_Parse7(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 7)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x07;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		chk = Transmit_checksum(&parsebuf[len-46], 22);
+		parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[7][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00, 48);
+        memset(val_savebuf, 0x00, 48);
+
+	}
+}
+
+void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
+{
+	static cx_uint8_t parsebuf[46];
+	static cx_uint8_t val_savebuf[26];
+	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t chk;
+	chk =0;
+
+	if (com_port == 8)
+	{
+		memcpy(parsebuf, bufptr, 46);
+
+
+		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
+		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
+		parsebuf[len-45] = 0x08;
+
+		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
+		memcpy(&parsebuf[len-43],val_savebuf, 19);
+
+
+
+		chk = Transmit_checksum(&parsebuf[len-46], 22);
+		parsebuf[len-24] = chk;
+
+
+		memcpy(&_DG_tx_buf[8][1],&parsebuf[len-45], 22);
+
+        memset(parsebuf, 0x00,48);
+        memset(val_savebuf, 0x00,48);
+
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 ////////////////////////////ascii to hex ///////////////////////////////////////////////////////////////////////////////////////
 void ascii_convert_to_hex(cx_uint8_t *asciidata, cx_uint8_t* hex_values, cx_uint_t data_size)
 {
@@ -1631,291 +1917,6 @@ void ascii_to_bcd(cx_uint8_t *asciidata, cx_uint8_t* bcd_values, cx_uint_t data_
 
 
 
-//////////////////////////////////////UARTbuffer to SPIbuffer//////////////////////////////////////////////////////////////////
-void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-
-
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 1)  // COM1 처리
-    {
-
-		memcpy(parsebuf, bufptr, 46);
-
-
-        ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-        ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-        parsebuf[len-45] = 0x01;
-
-        memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-        memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-        chk = Transmit_checksum(&parsebuf[len-45], 22);
-        parsebuf[len-23] = chk;
-
-
-        memcpy(&_DG_tx_buf[1][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00, 46);
-        memset(val_savebuf, 0x00, 26);
-
-
-    }
-
-}
-
-void COM_Input_Parse2(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 2)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x02;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[2][1],&parsebuf[len-45], 23);
-
-
-        memset(parsebuf, 0x00, 46);
-        memset(val_savebuf, 0x00, 26);
-
-	}
-}
-
-void COM_Input_Parse3(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 3)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x03;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[3][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00, sizeof(parsebuf));
-        memset(val_savebuf, 0x00, sizeof(parsebuf));
-	}
-
-}
-
-void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-
-
-	if (com_port == 4)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x04;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[4][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00, 48);
-        memset(val_savebuf, 0x00, 48);
-	}
-}
-
-void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 5)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x05;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[5][1],&parsebuf[len-45], 23);
-
-
-        memset(parsebuf, 0x00,48);
-        memset(val_savebuf, 0x00, 48);
-	}
-}
-
-void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-
-	if (com_port == 6)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x06;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[6][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00, 48);
-        memset(val_savebuf, 0x00, 48);
-	}
-}
-
-void COM_Input_Parse7(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 7)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x07;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[7][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00, 48);
-        memset(val_savebuf, 0x00, 48);
-
-	}
-}
-
-void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
-{
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
-	static cx_uint8_t chk;
-	chk =0;
-
-	if (com_port == 8)
-	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x08;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
-
-
-
-		chk = Transmit_checksum(&parsebuf[len-45], 22);
-		parsebuf[len-23] = chk;
-
-
-		memcpy(&_DG_tx_buf[8][1],&parsebuf[len-45], 23);
-
-        memset(parsebuf, 0x00,48);
-        memset(val_savebuf, 0x00,48);
-
-	}
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
 
 ///////////////////////////////////// SPI transmit checksum ////////////////////////////////////////////////////////
 cx_uint8_t Transmit_checksum(cx_uint8_t *data, cx_uint_t length)
@@ -1991,22 +1992,25 @@ void transmit_reset()
 ///////////////////////////////////// UART to SPI send ////////////////////////////////////////////////////////
 void transmit(void)
 {
-	static cx_uint8_t chk[8];
-	static cx_uint_t i,j,k,l;
+	static cx_uint8_t chk[9];
+	static cx_uint_t i,j,k,l,m;
 	cx_uint8_t sum =0;
 
 	memcpy(_DG_tx_buf[0],_data_,26);
 
 
-	for(k =0; k<8; k++)
+	for(k =1; k<9; k++)
 	{
-		chk[k] = Transmit_checksum(_DG_tx_buf[k+1], 22);
-		_DG_tx_buf[k+1][0] =  0x02;
-		_DG_tx_buf[k+1][23] = 0x03;
-		_DG_tx_buf[k+1][24] = 0x0d;
-		_DG_tx_buf[k+1][25] = 0x0a;
+		_DG_tx_buf[k][0] =  0x02;
+		_DG_tx_buf[k][23] = 0x03;
+		_DG_tx_buf[k][24] = 0x0d;
+		_DG_tx_buf[k][25] = 0x0a;
 	}
 
+	for(m =1; m<9; m++)
+	{
+		chk[m] = Transmit_checksum(_DG_tx_buf[m], 22);
+	}
 
 	for(l =0; l<26; l++)
 	{
@@ -2024,7 +2028,7 @@ void transmit(void)
 
 		    }
 
-		if(_DG_tx_buf[i][22] == chk[i-1] &&  sum !=0x00 && _DG_tx_buf[i][3] != 0x00 )
+		if( _DG_tx_buf[i][22] == chk[i] && sum !=0x00 && _DG_tx_buf[i][3] != 0x00 )
 		{
 
 			for(j=0; j<26; j++)
