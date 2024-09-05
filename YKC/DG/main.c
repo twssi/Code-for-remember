@@ -135,13 +135,15 @@ cx_uint8_t deparsebuf1[50];
 cx_uint8_t deparsebuf2[50];
 cx_uint8_t deparsebuf3[50];
 cx_uint8_t deparsebuf4[50];
-cx_uint8_t deparsebuf5[50];
 cx_uint8_t deparsebuf6[50];
 cx_uint8_t deparsebuf7[50];
 cx_uint8_t deparsebuf8[50];
 
-*/
+cx_uint8_t deparsebuf5[50];
+cx_uint8_t deparsebuf5_2[50];
+cx_uint8_t deparsebuf5_3[50];
 
+*/
 
 static cx_uint8_t 		_DG_tx_buf[9][30];
 static cx_uint8_t _data_[30] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1233,7 +1235,6 @@ cx_uint8_t fcs_conv(uint8_t data)
 	return value;
 }
 
-
 cx_uint32_t Packet_Verify(cx_uint8_t* bufptr, cx_uint32_t bufsize, cx_uint32_t max, cx_uint32_t* packetsize)
 {
 		cx_uint32_t  offset;
@@ -1581,7 +1582,7 @@ void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
         parsebuf[len-24] = chk;
 
 
-        memcpy(&_DG_tx_buf[1][1],&parsebuf[len-45], 22);
+        memcpy(&_DG_tx_buf[1][0],&parsebuf[len-46], 23);
 
         memset(parsebuf, 0x00, 46);
         memset(val_savebuf, 0x00, 26);
@@ -1617,7 +1618,7 @@ void COM_Input_Parse2(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		 parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[2][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[2][0],&parsebuf[len-46], 23);
 
 
         memset(parsebuf, 0x00, 46);
@@ -1653,7 +1654,7 @@ void COM_Input_Parse3(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 
 
 
-		memcpy(&_DG_tx_buf[3][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[3][0],&parsebuf[len-46], 23);
 
         memset(parsebuf, 0x00, sizeof(parsebuf));
         memset(val_savebuf, 0x00, sizeof(parsebuf));
@@ -1689,7 +1690,7 @@ void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[4][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[4][0],&parsebuf[len-46], 23);
 
         memset(parsebuf, 0x00, 48);
         memset(val_savebuf, 0x00, 48);
@@ -1706,6 +1707,7 @@ void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 
 	if (com_port == 5)
 	{
+
 		memcpy(parsebuf, bufptr, 46);
 
 
@@ -1722,7 +1724,7 @@ void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[5][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[5][0],&parsebuf[len-46], 23);
 
 
         memset(parsebuf, 0x00,48);
@@ -1744,6 +1746,7 @@ void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		memcpy(parsebuf, bufptr, 46);
 
 
+
 		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
 		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
 		parsebuf[len-45] = 0x06;
@@ -1757,9 +1760,10 @@ void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[6][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[6][0],&parsebuf[len-46], 23);
 
-        memset(parsebuf, 0x00, 48);
+
+        memset(parsebuf, 0x00,48);
         memset(val_savebuf, 0x00, 48);
 	}
 }
@@ -1790,7 +1794,7 @@ void COM_Input_Parse7(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[7][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[7][0],&parsebuf[len-46], 23);
 
         memset(parsebuf, 0x00, 48);
         memset(val_savebuf, 0x00, 48);
@@ -1808,6 +1812,7 @@ void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 
 	if (com_port == 8)
 	{
+
 		memcpy(parsebuf, bufptr, 46);
 
 
@@ -1824,10 +1829,11 @@ void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 		parsebuf[len-24] = chk;
 
 
-		memcpy(&_DG_tx_buf[8][1],&parsebuf[len-45], 22);
+		memcpy(&_DG_tx_buf[8][0],&parsebuf[len-46], 23);
 
         memset(parsebuf, 0x00,48);
         memset(val_savebuf, 0x00,48);
+
 
 	}
 }
@@ -1994,14 +2000,14 @@ void transmit(void)
 {
 	static cx_uint8_t chk[9];
 	static cx_uint_t i,j,k,l,m;
-	cx_uint8_t sum =0;
+
 
 	memcpy(_DG_tx_buf[0],_data_,26);
 
 
 	for(k =1; k<9; k++)
 	{
-		_DG_tx_buf[k][0] =  0x02;
+
 		_DG_tx_buf[k][23] = 0x03;
 		_DG_tx_buf[k][24] = 0x0d;
 		_DG_tx_buf[k][25] = 0x0a;
@@ -2022,13 +2028,7 @@ void transmit(void)
 	for(i=1; i<9; i++)
 	{
 
-		 for (k = 2; k < 22; k++)
-		    {
-		        sum += _DG_tx_buf[i][k];
-
-		    }
-
-		if( _DG_tx_buf[i][22] == chk[i] && sum !=0x00 && _DG_tx_buf[i][3] != 0x00 )
+		if( _DG_tx_buf[i][3] != 0x00 && _DG_tx_buf[i][22] == chk[i])
 		{
 
 			for(j=0; j<26; j++)
@@ -2037,8 +2037,8 @@ void transmit(void)
 			}
 
 		}
-		   memset(_DG_tx_buf[i], 0x00, 26);
-
+		memset(_DG_tx_buf[i], 0x00, 26);
+		memset(chk, 0x00, 9);
 	}
 
 
