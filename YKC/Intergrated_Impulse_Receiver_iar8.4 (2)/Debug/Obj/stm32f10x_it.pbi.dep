@@ -1,0 +1,49 @@
+stm32f10x_it.pbi: \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver\stm32f10x_it.c \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/stm32f10x_it.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\CMSIS\Core\Include\core_cm3.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\stdint.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\ycheck.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\yvals.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\DLib_Defaults.h \
+  C:\\Program\ Files\ (x86)\\IAR\ Systems\\Embedded\ Workbench\ 8.3\\arm\\inc\\c\\DLib_Config_Normal.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\DLib_Product.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\CMSIS\Core\Include/cmsis_version.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\CMSIS\Core\Include/cmsis_compiler.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\CMSIS\Core\Include\cmsis_iccarm.h \
+  C:\Program\ Files\ (x86)\IAR\ Systems\Embedded\ Workbench\ 8.3\arm\inc\c\iccarm_builtin.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include/system_stm32f10x.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver\stm32f10x_conf.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_adc.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include/stm32f10x.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_crc.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_dbgmcu.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_dma.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_exti.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_flash.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_gpio.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_i2c.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_iwdg.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_rcc.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_spi.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_tim.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_usart.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\stm32f10x_wwdg.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\Include\misc.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/main.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/type.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/bfifo.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/bsb.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/checksum.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/message_queue.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_debug.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_com.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_equipment.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_config.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_nb_packet.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_istream.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_peer.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_control_analog.h \
+  C:\Users\User\Desktop\Work\IMPULSE\Intergrated_Impulse_Receiver_iar8.4\ (2)\src_Receiver/mcu_application.h

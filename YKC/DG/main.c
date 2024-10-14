@@ -28,7 +28,6 @@
 #include "type.h"
 #include "stm32f4xx_hal_tim.h"
 #include "ring_buffer.h"
-#include "ctype.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,13 +60,34 @@ UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
-/////////////////////?��?���?//////////////////////////
+/////////////////////플래그//////////////////////////
 static cx_bool_t _flag_transmit  		= CX_FALSE;
 
-/////////////////////?��?���?//////////////////////////
+
+static cx_bool_t _flag_COM1_rx_done		= CX_FALSE;
+static cx_bool_t _flag_COM2_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM3_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM4_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM5_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM6_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM7_rx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM8_rx_done	 	= CX_FALSE;
 
 
-//////////////////링버?��, ?��?��버퍼///////////////////////////
+static cx_bool_t _flag_COM1_tx_done		= CX_FALSE;
+static cx_bool_t _flag_COM2_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM3_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM4_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM5_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM6_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM7_tx_done	 	= CX_FALSE;
+static cx_bool_t _flag_COM8_tx_done	 	= CX_FALSE;
+/////////////////////플래그//////////////////////////
+
+
+
+
+//////////////////링버퍼, 원형버퍼///////////////////////////
 
 uart_hal_rx_type uart_hal_rx;
 
@@ -106,12 +126,12 @@ static cx_uint8_t	         	  g_uart8_rxbuf[256];
 static const cx_uint_t    		  g_uart8_rxbufsize = 256;
 
 
-//////////////////링버?��, ?��?��버퍼///////////////////////////
+//////////////////링버퍼, 원형버퍼///////////////////////////
 
 
 
 
-///////////////////////UART ?��?��////////////////////////
+///////////////////////UART 수신////////////////////////
 static cx_uint8_t COM1_data =0;
 static cx_uint8_t COM2_data =0;
 static cx_uint8_t COM3_data =0;
@@ -121,8 +141,6 @@ static cx_uint8_t COM6_data =0;
 static cx_uint8_t COM7_data =0;
 static cx_uint8_t COM8_data =0;
 
-
-/*
 static cx_uint8_t _COM1_rx_data [150];
 static cx_uint8_t _COM2_rx_data	[150];
 static cx_uint8_t _COM3_rx_data	[150];
@@ -131,31 +149,24 @@ static cx_uint8_t _COM5_rx_data	[150];
 static cx_uint8_t _COM6_rx_data	[150];
 static cx_uint8_t _COM7_rx_data	[150];
 static cx_uint8_t _COM8_rx_data	[150];
-cx_uint8_t deparsebuf1[50];
-cx_uint8_t deparsebuf2[50];
-cx_uint8_t deparsebuf3[50];
-cx_uint8_t deparsebuf4[50];
-cx_uint8_t deparsebuf6[50];
-cx_uint8_t deparsebuf7[50];
-cx_uint8_t deparsebuf8[50];
 
-cx_uint8_t deparsebuf5[50];
-cx_uint8_t deparsebuf5_2[50];
-cx_uint8_t deparsebuf5_3[50];
 
-*/
 
-static cx_uint8_t 		_DG_tx_buf[9][30];
+
+
+static cx_uint8_t 		_DG_tx_buf[8][30];
+
+
 static cx_uint8_t _data_[30] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 								0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 								0x00, 0xA0, 0x03, 0x0D, 0x0A};
 
 
-///////////////////////UART ?��?��////////////////////////
+///////////////////////UART 수신////////////////////////
 
 
-////////////////////////???���?////////////////////
+////////////////////////타이머////////////////////
 static cx_uint_t _timer_count_0020_msec = 0;
 static cx_uint_t _COM1_rx_timeout_count = 0;
 static cx_uint_t _COM2_rx_timeout_count = 0;
@@ -176,7 +187,7 @@ static cx_uint_t _COM6_tx_timeout_count = 0;
 static cx_uint_t _COM7_tx_timeout_count = 0;
 static cx_uint_t _COM8_tx_timeout_count = 0;
 
-////////////////////////???���?////////////////////
+////////////////////////타이머////////////////////
 
 
 //for SPI to UART Module
@@ -262,44 +273,8 @@ static void MX_USART3_UART_Init(void);
 static void MX_USART6_UART_Init(void);
 /* USER CODE BEGIN PFP */
 static uint16_t _calcBaudRate(uint16_t baud_rate);
-
 cx_uint8_t Transmit_checksum(unsigned char *data, size_t length);
-cx_uint32_t Packet_Verify(cx_uint8_t* bufptr, cx_uint32_t bufsize, cx_uint32_t max, cx_uint32_t* packetsize);
-
-void ascii_convert_to_hex(cx_uint8_t *asciidata, cx_uint8_t* hex_values, cx_uint_t data_size);
 void ascii_to_bcd(cx_uint8_t *asciidata, cx_uint8_t* bcd_values, cx_uint_t data_size);
-
-void uartinput1(void);
-void uartinput2(void);
-void uartinput3(void);
-void uartinput4(void);
-void uartinput5(void);
-void uartinput6(void);
-void uartinput7(void);
-void uartinput8(void);
-
-void transmit_reset(void);
-void initial_GPIO_LED(void);
-void transmit(void);
-
-void OnUart1_Recv (cx_uint8_t ch);
-void OnUart2_Recv (cx_uint8_t ch);
-void OnUart3_Recv (cx_uint8_t ch);
-void OnUart4_Recv (cx_uint8_t ch);
-void OnUart5_Recv (cx_uint8_t ch);
-void OnUart6_Recv (cx_uint8_t ch);
-void OnUart7_Recv (cx_uint8_t ch);
-void OnUart8_Recv (cx_uint8_t ch);
-
-void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse2(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse3(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse7(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -406,28 +381,24 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
+	  uartbufcount1();
+	  uartbufcount2();
+	  uartbufcount3();
+	  uartbufcount4();
+	  uartbufcount5();
+	  uartbufcount6();
+	  uartbufcount7();
+	  uartbufcount8();
+
+
+	  if(_flag_transmit == CX_TRUE)
+	  {
+		  transmit();
+
+		  _flag_transmit = CX_FALSE;
+
+	  }
     /* USER CODE BEGIN 3 */
-
-	uartinput1();
-	uartinput2();
-	uartinput3();
-	uartinput4();
-	uartinput5();
-	uartinput6();
-	uartinput7();
-	uartinput8();
-
-	transmit_reset();
-
-	if(_flag_transmit == CX_TRUE)
-	{
-	  transmit();
-
-	  _flag_transmit = CX_FALSE;
-
-	}
-
-
   }
   /* USER CODE END 3 */
 }
@@ -449,11 +420,12 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 180;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
@@ -930,7 +902,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 
-//////////LED 초기?��//////////////////////////////////////////////////////////
+//////////LED 초기화//////////////////////////////////////////////////////////
 
 
 void initial_GPIO_LED(void)
@@ -959,22 +931,28 @@ void initial_GPIO_LED(void)
 
 	HAL_Delay(30);
 
+
 }
 
 
 
 
 
-////////////////////////////???���?////////////////////////////////////
+////////////////////////////타이머////////////////////////////////////
+
+
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
 
 		if(htim->Instance == TIM3)
 		{
-        ////////////SPI ?��?�� ???���?/////////////
+        ////////////SPI 송신 타이머/////////////
 			_timer_count_0020_msec++;
         ///////////////////////////////////
+
+
+///////////////////UART 수신 타이머 카운트/////////////////////
 			_COM1_rx_timeout_count++;
 			_COM2_rx_timeout_count++;
 			_COM3_rx_timeout_count++;
@@ -983,7 +961,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			_COM6_rx_timeout_count++;
 			_COM7_rx_timeout_count++;
 			_COM8_rx_timeout_count++;
+//////////////////UART 수신 타이머 카운트/////////////////////
 
+
+
+
+//////////////////////파싱 타이머 카운트/////////////////////
 			_COM1_tx_timeout_count++;
 			_COM2_tx_timeout_count++;
 			_COM3_tx_timeout_count++;
@@ -992,54 +975,161 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			_COM6_tx_timeout_count++;
 			_COM7_tx_timeout_count++;
 			_COM8_tx_timeout_count++;
-
-
-			if(_COM1_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_1_RX_LED_GPIO_Port, RX_1_RX_LED_Pin,SET);
-
-			}
-			if(_COM2_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_2_RX_LED_GPIO_Port, RX_2_RX_LED_Pin,SET);
-
-			}
-			if(_COM3_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_3_RX_LED_GPIO_Port, RX_3_RX_LED_Pin,SET);
-			}
-			if(_COM4_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_4_RX_LED_GPIO_Port, RX_4_RX_LED_Pin,SET);
-
-			}
-			if(_COM5_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_5_RX_LED_GPIO_Port, RX_5_RX_LED_Pin,SET);
-
-			}
-			if(_COM6_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_6_RX_LED_GPIO_Port, RX_6_RX_LED_Pin,SET);
-
-			}
-			if(_COM7_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_7_RX_LED_GPIO_Port, RX_7_RX_LED_Pin,SET);
-
-			}
-			if(_COM8_rx_timeout_count>5)
-			{
-				HAL_GPIO_WritePin(RX_8_RX_LED_GPIO_Port, RX_8_RX_LED_Pin,SET);
-
-			}
+/////////////////파싱 타이머 카운트///////////////////////
 
 
 
-			if(_timer_count_0020_msec > 1000)
+
+
+
+			if(_timer_count_0020_msec>1000)
 			{
 				_flag_transmit = CX_TRUE;
 				_timer_count_0020_msec=0;
+			}
+
+
+
+//////////////각 포트 타이머////////////////////////
+
+
+
+
+///////////////////////////포트1////////////////////////////////////////////////////////
+
+
+
+			//// RX_1_RX 카운트////
+			if(_COM1_rx_timeout_count>2000) //2초간 대기 후 초기화
+			{
+				if(__HAL_UART_GET_FLAG(&huart1, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_1_RX_LED_GPIO_Port, RX_1_RX_LED_Pin, SET);
+
+					_COM1_rx_timeout_count = 0;
+
+				}
+
+			}
+
+
+
+
+
+///////////////////////////포트2////////////////////////////////////////////////////////
+
+			if(_COM2_rx_timeout_count>2000)
+			{
+				if(__HAL_UART_GET_FLAG(&huart2, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_2_RX_LED_GPIO_Port, RX_2_RX_LED_Pin, SET);
+
+					_COM2_rx_timeout_count = 0;
+
+				}
+
+			}
+
+
+
+///////////////////////////포트3////////////////////////////////////////////////////////
+			if(_COM3_rx_timeout_count>2000)
+			{
+				if(__HAL_UART_GET_FLAG(&huart3, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_3_RX_LED_GPIO_Port, RX_3_RX_LED_Pin, SET);
+
+					_COM3_rx_timeout_count = 0;
+
+				}
+
+
+			}
+
+
+///////////////////////////포트4////////////////////////////////////////////////////////
+			if(_COM4_rx_timeout_count>2000)
+			{
+				if(__HAL_UART_GET_FLAG(&huart4, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_4_RX_LED_GPIO_Port, RX_4_RX_LED_Pin, SET);
+
+					_COM4_rx_timeout_count = 0;
+
+				}
+
+
+			}
+
+
+
+///////////////////////////포트5////////////////////////////////////////////////////////
+			if(_COM5_rx_timeout_count>2000)
+			{
+				if(__HAL_UART_GET_FLAG(&huart5, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_5_RX_LED_GPIO_Port, RX_5_RX_LED_Pin, SET);
+
+					_COM5_rx_timeout_count = 0;
+
+				}
+
+
+			}
+
+
+
+///////////////////////////포트6////////////////////////////////////////////////////////
+			if(_COM6_rx_timeout_count>2000)
+			{
+				if(__HAL_UART_GET_FLAG(&huart6, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_6_RX_LED_GPIO_Port, RX_6_RX_LED_Pin, SET);
+
+					_COM6_rx_timeout_count = 0;
+
+				}
+
+
+			}
+
+///////////////////////////포트7////////////////////////////////////////////////////////
+
+			if(_COM7_rx_timeout_count>2000)
+			{
+
+				if(__HAL_UART_GET_FLAG(&huart7, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_7_RX_LED_GPIO_Port, RX_7_RX_LED_Pin, SET);
+
+					_COM7_rx_timeout_count = 0;
+
+				}
+
+			}
+
+
+///////////////////////////포트8////////////////////////////////////////////////////////
+			if(_COM8_rx_timeout_count>2000)
+			{
+
+				if(__HAL_UART_GET_FLAG(&huart8, UART_FLAG_RXNE) == RESET)
+				{
+
+					HAL_GPIO_WritePin(RX_8_RX_LED_GPIO_Port, RX_8_RX_LED_Pin, SET);
+
+					_COM8_rx_timeout_count = 0;
+
+				}
+
+
 			}
 
 
@@ -1049,31 +1139,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 
-////////////////////////?��?�� ?��?��?��?��///////////////////////////////////////////////////////
+////////////////////////수신 인터럽트///////////////////////////////////////////////////////
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 
 	if(huart->Instance == USART1)
 	{
-		_COM1_rx_timeout_count = 0;
-		_COM1_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_1_RX_LED_GPIO_Port, RX_1_RX_LED_Pin,RESET);
 
 		OnUart1_Recv(COM1_data);
+		HAL_GPIO_WritePin(RX_1_RX_LED_GPIO_Port, RX_1_RX_LED_Pin, RESET);
+
 		HAL_UART_Receive_IT(&huart1, &COM1_data, 1);
+
 
 	}
 
 	if(huart->Instance == USART2)
 	{
-		_COM2_rx_timeout_count = 0;
-		_COM2_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_2_RX_LED_GPIO_Port, RX_2_RX_LED_Pin,RESET);
 
 		OnUart2_Recv(COM2_data);
+
+		HAL_GPIO_WritePin(RX_2_RX_LED_GPIO_Port, RX_2_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart2, &COM2_data, 1);
 
 
@@ -1081,61 +1168,59 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 	if(huart->Instance == USART3)
 	{
-		_COM3_rx_timeout_count = 0;
-		_COM3_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_3_RX_LED_GPIO_Port, RX_3_RX_LED_Pin,RESET);
 
 		OnUart3_Recv(COM3_data);
+
+
+
+		HAL_GPIO_WritePin(RX_3_RX_LED_GPIO_Port, RX_3_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart3, &COM3_data, 1);
 
 	}
 
 	if(huart->Instance == UART4)
 	{
-		_COM4_rx_timeout_count = 0;
-		_COM4_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_4_RX_LED_GPIO_Port, RX_4_RX_LED_Pin,RESET);
 
 		OnUart4_Recv(COM4_data);
+
+		HAL_GPIO_WritePin(RX_4_RX_LED_GPIO_Port, RX_4_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart4, &COM4_data, 1);
 
 	}
 
 	if(huart->Instance == UART5)
 	{
-		_COM5_rx_timeout_count = 0;
-		_COM5_tx_timeout_count =0;
 
-		HAL_GPIO_WritePin(RX_5_RX_LED_GPIO_Port, RX_5_RX_LED_Pin,RESET);
 
 		OnUart5_Recv(COM5_data);
+
+
+		HAL_GPIO_WritePin(RX_5_RX_LED_GPIO_Port, RX_5_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart5, &COM5_data, 1);
+
 
 	}
 
 	if(huart->Instance == USART6)
 	{
 
-		_COM6_rx_timeout_count = 0;
-		_COM6_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_6_RX_LED_GPIO_Port, RX_6_RX_LED_Pin,RESET);
 
 		OnUart6_Recv(COM6_data);
+
+		HAL_GPIO_WritePin(RX_6_RX_LED_GPIO_Port, RX_6_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart6, &COM6_data, 1);
+
 
 	}
 
 	if(huart->Instance == UART7)
 	{
-		_COM7_rx_timeout_count = 0;
-		_COM7_tx_timeout_count =0;
 
-		HAL_GPIO_WritePin(RX_7_RX_LED_GPIO_Port, RX_7_RX_LED_Pin,RESET);
 
 		OnUart7_Recv(COM7_data);
+
+
+		HAL_GPIO_WritePin(RX_7_RX_LED_GPIO_Port, RX_7_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart7, &COM7_data, 1);
 
 
@@ -1143,12 +1228,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 	if(huart->Instance == UART8)
 	{
-		_COM8_rx_timeout_count = 0;
-		_COM8_tx_timeout_count =0;
-
-		HAL_GPIO_WritePin(RX_8_RX_LED_GPIO_Port, RX_8_RX_LED_Pin,RESET);
 
 		OnUart8_Recv(COM8_data);
+
+		HAL_GPIO_WritePin(RX_8_RX_LED_GPIO_Port, RX_8_RX_LED_Pin, RESET);
 		HAL_UART_Receive_IT(&huart8, &COM8_data, 1);
 
 	}
@@ -1159,7 +1242,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 
 
-//////////////////////////////////UART circular buf write///////////////////////////////////////////
+
+//////////////////////////////////UART 수신 데이터 링버퍼 처리///////////////////////////////////////////
 
 
 
@@ -1196,7 +1280,535 @@ void OnUart8_Recv (cx_uint8_t ch)
 	ringbuf_write (&g_uart8_rxringbuf, &ch, 1);
 }
 
-//////////////////////////////////Receive packet verify//////////////////////////////////////////////////////////////////////////////////////
+
+
+
+///////////////////////////////////////UART 수신 처리////////////////////////////////////////////////////////
+
+
+
+void uartbufcount1(void) //원형 버퍼로부터 데이터를 받아 처리
+{
+
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart1_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart1_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if (i <= sizeof(buf))
+	                {
+	                    // 0x02부터 시작해서 50바이트 복사
+	                    memcpy(_COM1_rx_data, &buf[i+1], 50);
+	                    _flag_COM1_rx_done = CX_TRUE;
+	                    uartbufverify1();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+
+	                else
+	                {
+	                    i++;
+	                }
+
+	            }
+
+	        }
+
+	   }
+
+
+}
+
+void uartbufcount2(void)
+{
+
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart2_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart2_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if (i <= sizeof(buf))
+	                {
+	                    // 0x02부터 시작해서 50바이트 복사
+	                    memcpy(_COM2_rx_data, &buf[i+1], 50);
+	                    _flag_COM2_rx_done = CX_TRUE;
+	                    uartbufverify2();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+
+	                else
+	                {
+	                    i++;
+	                }
+
+	            }
+
+	        }
+
+	   }
+
+}
+
+void uartbufcount3(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart3_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart3_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if ( i <= sizeof(buf))
+	                {
+	                    // 0x02부터 시작해서 50바이트 복사
+	                    memcpy(_COM3_rx_data, &buf[i+1], 50);
+	                    _flag_COM3_rx_done = CX_TRUE;
+	                    uartbufverify3();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+
+	                else
+	                {
+	                    i++;
+	                }
+
+	            }
+
+	        }
+
+	   }
+
+
+
+}
+
+
+void uartbufcount4(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart4_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart4_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if ( i <= sizeof(buf))
+	                {
+	                    // 0x02부터 시작해서 50바이트 복사
+	                    memcpy(_COM4_rx_data, &buf[i+1], 50);
+	                    _flag_COM4_rx_done = CX_TRUE;
+	                    uartbufverify4();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+	                else
+	                {
+	                    i++;
+	                }
+	            }
+	        }
+	   }
+
+
+}
+
+void uartbufcount5(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart5_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart5_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if ( i <= sizeof(buf))
+	                {
+	                    // 0x02부터 시작해서 50바이트 복사
+	                    memcpy(_COM5_rx_data, &buf[i+1], 50);
+	                    _flag_COM5_rx_done = CX_TRUE;
+	                    uartbufverify5();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+	                else
+	                {
+	                    i++;
+	                }
+	            }
+	        }
+	   }
+
+}
+
+void uartbufcount6(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart6_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart6_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if ( i <= sizeof(buf))
+	                {
+	                    // 0x0a부터 시작해서 50바이트 복사
+	                    memcpy(_COM6_rx_data, &buf[i+1], 50);
+	                    _flag_COM6_rx_done = CX_TRUE;
+	                    uartbufverify6();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+	                else
+	                {
+	                    i++;
+	                }
+	            }
+	        }
+	   }
+
+}
+
+
+void uartbufcount7(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart7_rxringbuf) > 0)
+	 {
+
+	        if (ringbuf_read(&g_uart7_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+	        {
+	            buf[i++] = temp_buf[0];
+
+	            // 0x0a를 발견하면 처리
+	            if (buf[i] == 0x0A)
+	            {
+	                if ( i <= sizeof(buf))
+	                {
+	                    // 0x0a부터 시작해서 46바이트 복사
+	                    memcpy(_COM7_rx_data, &buf[i+1], 50);
+	                    _flag_COM7_rx_done = CX_TRUE;
+	                    uartbufverify7();
+	                    memset(buf, 0x00, 255);
+	                    i = 0;
+	                }
+	                else
+	                {
+	                    i++;
+	                }
+	            }
+	        }
+	   }
+
+
+}
+
+
+void uartbufcount8(void)
+{
+	static cx_uint8_t i=0;
+	static cx_uint8_t temp_buf[1];
+	static cx_uint8_t buf[255];
+
+
+
+	 while (ringbuf_get_readable_space(&g_uart8_rxringbuf) > 0)
+	 {
+
+		if (ringbuf_read(&g_uart8_rxringbuf, temp_buf, 1) > 0) // 원형 버퍼에서 1바이트 읽어서 temp_buf에 저장
+		{
+			buf[i++] = temp_buf[0];
+
+
+			if (buf[i] == 0x0A) // 0x0a를 발견하면 처리
+			{
+				if ( i <= sizeof(buf))
+				{
+					// 0x0a+1부터 시작해서 50바이트 복사
+					memcpy(_COM8_rx_data, &buf[i+1], 50);
+					_flag_COM8_rx_done = CX_TRUE;
+					uartbufverify8();
+					memset(buf, 0x00, 255);
+					i = 0;
+				}
+				else
+				{
+					i++;
+				}
+			}
+
+		 }
+
+	   }
+
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+///////////////////////////////////UART 패킷 처리/////////////////////////////////////////////////////////
+
+void uartbufverify1(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM1_rx_data);
+
+
+	if(CX_FALSE == _flag_COM1_rx_done)
+	{
+
+		return;
+	}
+
+
+
+	if(Packet_Verify(_COM1_rx_data, size, max, &offset))
+	{
+		_flag_COM1_tx_done = CX_TRUE;
+		COM_Input_Parse1(_COM1_rx_data, size, 1);
+
+
+	}
+}
+
+void uartbufverify2(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM2_rx_data);
+
+
+	if(CX_FALSE == _flag_COM2_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM2_rx_data,size , max, &offset))
+	{
+		_flag_COM2_tx_done = CX_TRUE;
+		COM_Input_Parse2(_COM2_rx_data, size, 2);
+
+	}
+}
+
+void uartbufverify3(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM3_rx_data);
+
+
+	if(CX_FALSE == _flag_COM3_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM3_rx_data, size, max, &offset))
+	{
+		_flag_COM3_tx_done = CX_TRUE;
+		COM_Input_Parse3(_COM3_rx_data, size, 3);
+
+	}
+
+}
+
+void uartbufverify4(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM4_rx_data);
+
+
+	if(CX_FALSE == _flag_COM4_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM4_rx_data, size, max, &offset))
+	{
+		_flag_COM4_tx_done = CX_TRUE;
+		COM_Input_Parse4(_COM4_rx_data, size, 4);
+	}
+}
+void uartbufverify5(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM5_rx_data);
+
+
+	if(CX_FALSE == _flag_COM5_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM5_rx_data, size, max, &offset))
+	{
+		_flag_COM5_tx_done = CX_TRUE;
+		COM_Input_Parse5(_COM5_rx_data, size, 5);
+
+	}
+}
+void uartbufverify6(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM6_rx_data);
+
+
+	if(CX_FALSE == _flag_COM6_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM6_rx_data, size, max, &offset))
+	{
+		_flag_COM6_tx_done = CX_TRUE;
+		COM_Input_Parse6(_COM6_rx_data, size, 6);
+
+	}
+}
+void uartbufverify7(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM7_rx_data);
+
+
+	if(CX_FALSE == _flag_COM7_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM7_rx_data, size, max, &offset))
+	{
+		_flag_COM7_tx_done = CX_TRUE;
+		COM_Input_Parse7(_COM7_rx_data, size, 7);
+
+	}
+}
+
+void uartbufverify8(void)
+{
+
+	const cx_uint32_t   max = 512;
+	cx_uint32_t         size;
+	cx_uint32_t         offset;
+
+	size = sizeof(_COM8_rx_data);
+
+
+	if(CX_FALSE == _flag_COM8_rx_done)
+	{
+		return;
+	}
+
+
+	if(Packet_Verify(_COM8_rx_data, size, max, &offset))
+	{
+		_flag_COM8_tx_done = CX_TRUE;
+		COM_Input_Parse8(_COM8_rx_data, size, 8);
+
+	}
+}
+//////////////////////////////////////////////////////////////////////////////////////////
+
+
+///////////////////////////////////////UART 수신 데이터 무결성 검사////////////////////////////////
 cx_uint8_t fcs_rx(uint8_t* data, cx_uint16_t len)
 {
 	cx_uint16_t i;
@@ -1235,52 +1847,63 @@ cx_uint8_t fcs_conv(uint8_t data)
 	return value;
 }
 
-cx_uint32_t Packet_Verify(cx_uint8_t* bufptr, cx_uint32_t bufsize, cx_uint32_t max, cx_uint32_t* packetsize)
+
+
+void Packet_Verify (cx_uint8_t* bufptr, cx_uint32_t bufsize, cx_uint32_t max, cx_uint32_t* packetsize)
 {
 		cx_uint32_t  offset;
 		cx_uint32_t  result;
 
+		cx_uint32_t  setnum;
+
 		cx_uint8_t etx;
-		cx_uint8_t stx;
+
 		cx_uint8_t chk;
 
 		offset = 0;
 		result = 0;
 
+		static cx_uint8_t buf[100];
 
+		static cx_uint32_t i;
 
+		for(i = 0; i<bufsize; i++)
+		{
+			buf[i] = bufptr[i];
+
+			if(buf[i] == 0x0A)
+			{
+
+				etx = buf[i];
+				setnum = i;
+				break;
+			}
+		}
 
 		if (bufsize>max)
 		{
 			goto cleanup;
 		}
 
-		etx = bufptr[bufsize-1];
-
-		stx = bufptr[offset];
-		if (stx!=0x02)
-		{
-			offset+=1;
-			goto cleanup;
-		}
+		//etx = bufptr[bufsize-7];
 
 		if (etx!=0x0A)
 		{
-			offset+=1;
+			offset+=2;
 			goto cleanup;
 		}
 
-		chk = fcs_rx(&bufptr[bufsize-45], 40);
+		chk = fcs_rx(&bufptr[setnum-44], 40);
 
-		if (bufptr[bufsize-5]!=fcs_conv(chk>>4))
+		if (bufptr[setnum-4]!=fcs_conv(chk>>4))
 		{
-			offset+=1;
+			offset+=2;
 			goto cleanup;
 		}
 
-		if (bufptr[bufsize-4]!=fcs_conv(chk&0x0f))
+		if (bufptr[setnum-3]!=fcs_conv(chk&0x0f))
 		{
-			offset+=1;
+			offset+=2;
 			goto cleanup;
 		}
 
@@ -1288,304 +1911,81 @@ cx_uint32_t Packet_Verify(cx_uint8_t* bufptr, cx_uint32_t bufsize, cx_uint32_t m
 		offset = bufsize;
 		result = 1;
 
-cleanup:
-	if (packetsize)
-	{
-	*packetsize = offset;
-	}
+		cleanup:
+			if (packetsize)
+			{
+			*packetsize = offset;
+			}
 
 		return result;
 
 
 
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////UART input process////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void uartinput1(void)
-{
 
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart1_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart1_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse1(buf, max, 1);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart1_rxringbuf, buf, offset);
-
-
-	}
-}
-void uartinput2(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size   = 0;
-	static cx_uint_t  max    = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart2_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart2_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse2(buf, max, 2);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart2_rxringbuf, buf, offset);
-
-
-	}
-}
-
-void uartinput3(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-
-	while (ringbuf_get_readable_space(&g_uart3_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart3_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse3(buf, max, 3);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart3_rxringbuf, buf, offset);
-
-
-	}
-}
-
-void uartinput4(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-
-
-	while (ringbuf_get_readable_space(&g_uart4_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart4_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse4(buf, max, 4);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart4_rxringbuf, buf, offset);
-
-
-	}
-}
-
-
-void uartinput5(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart5_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart5_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse5(buf, max, 5);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart5_rxringbuf, buf, offset);
-
-
-	}
-}
-void uartinput6(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart6_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart6_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse6(buf, max, 6);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart6_rxringbuf, buf, offset);
-
-
-	}
-}
-
-void uartinput7(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart7_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart7_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse7(buf, max, 7);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart7_rxringbuf, buf, offset);
-
-
-	}
-}
-
-void uartinput8(void)
-{
-
-	static cx_uint8_t buf[46];
-	static cx_uint8_t size =0;
-	static cx_uint_t  max  = 46;
-	static cx_uint32_t  offset =0;
-
-	while (ringbuf_get_readable_space(&g_uart8_rxringbuf) >= 46)
-	{
-		size = ringbuf_peek(&g_uart8_rxringbuf, buf, max);
-
-		if(Packet_Verify(buf, size, max, &offset))
-		{
-			COM_Input_Parse8(buf, max, 8);
-		}
-
-		else
-		{
-			if (0==offset)
-			{
-				break;
-			}
-		}
-		ringbuf_read (&g_uart8_rxringbuf, buf, offset);
-
-
-	}
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-//////////////////////////////////////UARTbuffer to SPIbuffer//////////////////////////////////////////////////////////////////
+//////////////////////////////////////데이터 BCD 변경 및 SPI 버퍼 저장/////////////////////////////////////
 void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
 
 
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
-	if (com_port == 1)  // COM1 처리
+
+
+	if (com_port == 1)  // COM1 포트만 처리
     {
 
-		memcpy(parsebuf, bufptr, 46);
+		static cx_uint32_t i;
+		static cx_uint32_t offset;
+
+        for(i = 0; i<len; i++)
+        {
+
+        	parsebuf[i] = bufptr[i];
+
+            if(parsebuf[i] == 0x0A)
+            {
+            	offset=i;
+                break;
+            }
+        }
+
+        if(CX_TRUE == _flag_COM1_tx_done)
+        {
+			HAL_GPIO_WritePin(RX_1_TX_LED_GPIO_Port, RX_1_TX_LED_Pin, RESET);
+
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_1_TX_LED_GPIO_Port, RX_1_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-        ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-        ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-        parsebuf[len-45] = 0x01;
-
-        memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-        memcpy(&parsebuf[len-43],val_savebuf, 19);
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
 
+        memcpy(_DG_tx_buf[0],&parsebuf[offset-45], 23);
 
-        chk = Transmit_checksum(&parsebuf[len-46], 22);
-        parsebuf[len-24] = chk;
+        _flag_COM1_tx_done = CX_FALSE;
 
+        for(i = 0; i< 100; i++) // 초기화
+        {
+            parsebuf[i] = 0x00;
+            val_savebuf[i]=0x00;
 
-        memcpy(&_DG_tx_buf[1][0],&parsebuf[len-46], 23);
-
-        memset(parsebuf, 0x00, 46);
-        memset(val_savebuf, 0x00, 26);
+        }
 
 
     }
@@ -1594,79 +1994,128 @@ void COM_Input_Parse1(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 
 void COM_Input_Parse2(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 	if (com_port == 2)
 	{
-		memcpy(parsebuf, bufptr, 46);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x02;
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+        {
+        	parsebuf[i] = bufptr[i];
 
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+            if(parsebuf[i] == 0x0A)
+            {
+            	offset=i;
+                break;
+            }
+        }
+
+        if(CX_TRUE == _flag_COM2_tx_done)
+        {
+			HAL_GPIO_WritePin(RX_2_TX_LED_GPIO_Port, RX_2_TX_LED_Pin, RESET);
+
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_2_TX_LED_GPIO_Port, RX_2_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-
-		 chk = Transmit_checksum(&parsebuf[len-46], 22);
-		 parsebuf[len-24] = chk;
-
-
-		memcpy(&_DG_tx_buf[2][0],&parsebuf[len-46], 23);
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
 
-        memset(parsebuf, 0x00, 46);
-        memset(val_savebuf, 0x00, 26);
+		memcpy(_DG_tx_buf[1], &parsebuf[offset-45], 23);
+
+		_flag_COM2_tx_done = CX_FALSE;
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
 
 	}
 }
 
 void COM_Input_Parse3(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 	if (com_port == 3)
 	{
-		memcpy(parsebuf, bufptr, 46);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x03;
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
 
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
+
+        if(CX_TRUE == _flag_COM3_tx_done)
+        {
+    		HAL_GPIO_WritePin(RX_3_TX_LED_GPIO_Port, RX_3_TX_LED_Pin, RESET);
+
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_3_TX_LED_GPIO_Port, RX_3_TX_LED_Pin, SET);
+        }
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-
-		 chk = Transmit_checksum(&parsebuf[len-46], 22);
-		 parsebuf[len-24] = chk;
-
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
 
-		memcpy(&_DG_tx_buf[3][0],&parsebuf[len-46], 23);
+		memcpy(_DG_tx_buf[2], &parsebuf[offset-45], 23);
 
-        memset(parsebuf, 0x00, sizeof(parsebuf));
-        memset(val_savebuf, 0x00, sizeof(parsebuf));
+		_flag_COM3_tx_done = CX_FALSE;
+
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
+
 	}
 
 }
 
 void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
@@ -1674,208 +2123,296 @@ void COM_Input_Parse4(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 
 	if (com_port == 4)
 	{
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x04;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
 
-		chk = Transmit_checksum(&parsebuf[len-46], 22);
-		parsebuf[len-24] = chk;
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
+
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
+
+        if(CX_TRUE == _flag_COM4_tx_done)
+        {
+        	HAL_GPIO_WritePin(RX_4_TX_LED_GPIO_Port, RX_4_TX_LED_Pin, RESET);
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_4_TX_LED_GPIO_Port, RX_4_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-		memcpy(&_DG_tx_buf[4][0],&parsebuf[len-46], 23);
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
-        memset(parsebuf, 0x00, 48);
-        memset(val_savebuf, 0x00, 48);
+		memcpy(_DG_tx_buf[3], &parsebuf[offset-45], 23);
+
+		_flag_COM4_tx_done = CX_FALSE;
+
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
+
 	}
 }
 
 void COM_Input_Parse5(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 	if (com_port == 5)
 	{
-
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x05;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
 
-		chk = Transmit_checksum(&parsebuf[len-46], 22);
-		parsebuf[len-24] = chk;
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
+
+        if(CX_TRUE == _flag_COM5_tx_done)
+        {
+        	HAL_GPIO_WritePin(RX_5_TX_LED_GPIO_Port, RX_5_TX_LED_Pin, RESET);
+
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_5_TX_LED_GPIO_Port, RX_5_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-		memcpy(&_DG_tx_buf[5][0],&parsebuf[len-46], 23);
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
+		memcpy(_DG_tx_buf[4], &parsebuf[offset-45], 23);
 
-        memset(parsebuf, 0x00,48);
-        memset(val_savebuf, 0x00, 48);
+		_flag_COM5_tx_done = CX_FALSE;
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
+
 	}
 }
 
 void COM_Input_Parse6(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 
 	if (com_port == 6)
 	{
-		memcpy(parsebuf, bufptr, 46);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
 
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x06;
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
 
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
+
+        if(CX_TRUE == _flag_COM6_tx_done)
+        {
+        	HAL_GPIO_WritePin(RX_6_TX_LED_GPIO_Port, RX_6_TX_LED_Pin, RESET);
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_6_TX_LED_GPIO_Port, RX_6_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
-
-		chk = Transmit_checksum(&parsebuf[len-46], 22);
-		parsebuf[len-24] = chk;
-
-
-		memcpy(&_DG_tx_buf[6][0],&parsebuf[len-46], 23);
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
 
-        memset(parsebuf, 0x00,48);
-        memset(val_savebuf, 0x00, 48);
+		memcpy(_DG_tx_buf[5], &parsebuf[offset-45], 23);
+
+		_flag_COM6_tx_done = CX_FALSE;
+
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
+
 	}
 }
 
 void COM_Input_Parse7(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 	if (com_port == 7)
 	{
-		memcpy(parsebuf, bufptr, 46);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x07;
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
 
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
+
+        if(CX_TRUE == _flag_COM7_tx_done)
+        {
+        	HAL_GPIO_WritePin(RX_7_TX_LED_GPIO_Port, RX_7_TX_LED_Pin, RESET);
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_7_TX_LED_GPIO_Port, RX_7_TX_LED_Pin, SET);
+        }
+
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
 
 
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
 
-		chk = Transmit_checksum(&parsebuf[len-46], 22);
-		parsebuf[len-24] = chk;
+		memcpy(_DG_tx_buf[6], &parsebuf[offset-45], 23);
 
+		_flag_COM7_tx_done = CX_FALSE;
 
-		memcpy(&_DG_tx_buf[7][0],&parsebuf[len-46], 23);
+		for(i=0; i<100; i++)
+		{
 
-        memset(parsebuf, 0x00, 48);
-        memset(val_savebuf, 0x00, 48);
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
 
 	}
 }
 
 void COM_Input_Parse8(cx_uint8_t* bufptr, cx_uint_t len, cx_uint_t com_port)
 {
-	static cx_uint8_t parsebuf[46];
-	static cx_uint8_t val_savebuf[26];
-	static cx_uint8_t hax_val_savebuf[2];
+	static cx_uint8_t parsebuf[100];
+	static cx_uint8_t val_savebuf[50];
+
 	static cx_uint8_t chk;
 	chk =0;
 
 	if (com_port == 8)
 	{
-
-		memcpy(parsebuf, bufptr, 46);
-
-
-		ascii_to_bcd(&parsebuf[len-43], val_savebuf, 38);
-		ascii_convert_to_hex(&parsebuf[len-45], hax_val_savebuf, 2);
-		parsebuf[len-45] = 0x08;
-
-		memcpy(&parsebuf[len-44],hax_val_savebuf, 1);
-		memcpy(&parsebuf[len-43],val_savebuf, 19);
+		static cx_uint8_t i;
+		static cx_uint32_t offset;
 
 
+		for(i = 0; i<len; i++)  // parsebuf에 bufptr의 데이터를 복사
+		{
+			parsebuf[i] = bufptr[i];
 
-		chk = Transmit_checksum(&parsebuf[len-46], 22);
-		parsebuf[len-24] = chk;
+			if(parsebuf[i] == 0x0A)
+			{
+				offset=i;
+				break;
+			}
+		}
 
 
-		memcpy(&_DG_tx_buf[8][0],&parsebuf[len-46], 23);
+        if(CX_TRUE == _flag_COM8_tx_done)
+        {
+        	HAL_GPIO_WritePin(RX_8_TX_LED_GPIO_Port, RX_8_TX_LED_Pin, RESET);
 
-        memset(parsebuf, 0x00,48);
-        memset(val_savebuf, 0x00,48);
+        }
+        else
+        {
+        	HAL_GPIO_WritePin(RX_8_TX_LED_GPIO_Port, RX_8_TX_LED_Pin, SET);
+        }
 
+        ascii_to_bcd(&parsebuf[offset-44], val_savebuf, 40);
+        parsebuf[offset-44] = 0x01;
+        memcpy(&parsebuf[offset-43],val_savebuf, 21);
+
+
+        chk = Transmit_checksum(&parsebuf[offset-45], 22);
+        parsebuf[offset-23] = chk;
+
+
+		memcpy(_DG_tx_buf[7], &parsebuf[offset-45], 23);
+
+		 _flag_COM8_tx_done = CX_FALSE;
+
+		for(i=0; i<100; i++)
+		{
+
+			parsebuf[i]=0x00;
+			val_savebuf[i]=0x00;
+
+		}
 
 	}
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////ascii to hex ///////////////////////////////////////////////////////////////////////////////////////
-void ascii_convert_to_hex(cx_uint8_t *asciidata, cx_uint8_t* hex_values, cx_uint_t data_size)
-{
 
-	cx_uint8_t high_nibble = 0;
-	cx_uint8_t low_nibble = 0;
 
-	for (cx_uint_t j = 0; j < data_size; j += 2) {
-		// high nibble 계산
-		if (asciidata[j] >= '0' && asciidata[j] <= '9') {
-			high_nibble = asciidata[j] - '0'; // 숫자(0-9) 변환
-		} else if (asciidata[j] >= 'A' && asciidata[j] <= 'F') {
-			high_nibble = asciidata[j] - 'A' + 10; // 대문자(A-F) 변환
-		} else if (asciidata[j] >= 'a' && asciidata[j] <= 'f') {
-			high_nibble = asciidata[j] - 'a' + 10; // 소문자(a-f) 변환
-		}
-
-		// low nibble 계산
-		if (asciidata[j + 1] >= '0' && asciidata[j + 1] <= '9') {
-			low_nibble = asciidata[j + 1] - '0'; // 숫자(0-9) 변환
-		} else if (asciidata[j + 1] >= 'A' && asciidata[j + 1] <= 'F') {
-			low_nibble = asciidata[j + 1] - 'A' + 10; // 대문자(A-F) 변환
-		} else if (asciidata[j + 1] >= 'a' && asciidata[j + 1] <= 'f') {
-			low_nibble = asciidata[j + 1] - 'a' + 10; // 소문자(a-f) 변환
-		}
-
-		// 변환된 HEX 값을 배열에 저장
-		hex_values[j / 2] = (high_nibble << 4) | low_nibble;
-	}
-
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////ascii to bcd //////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////ascii to bcd 변형/////////////////////////////////////////////////
 
 void ascii_to_bcd(cx_uint8_t *asciidata, cx_uint8_t* bcd_values, cx_uint_t data_size)
 {
@@ -1909,22 +2446,20 @@ void ascii_to_bcd(cx_uint8_t *asciidata, cx_uint8_t* bcd_values, cx_uint_t data_
 
         	bcd_values[j / 2] = (high_nibble << 4) | low_nibble;
 
-            j++; // ?��?�� ASCII 문자�? ?��?��
+            j++; // 다음 ASCII 문자로 이동
         }
         else
         {
-        	bcd_values[j / 2] = 0; // ASCII�? ?��?���? ?��?�� 경우 0?���? ?��?��
+        	bcd_values[j / 2] = 0; // ASCII가 숫자가 아닌 경우 0으로 설정
         }
 	}
 
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////
 
 
 
-
-///////////////////////////////////// SPI transmit checksum ////////////////////////////////////////////////////////
+///////////////////////////////////// SPI 송신 패킷 무결성 함수 ////////////////////////////////////////////////////////
 cx_uint8_t Transmit_checksum(cx_uint8_t *data, cx_uint_t length)
 {
 	cx_uint8_t result = 0;
@@ -1940,110 +2475,383 @@ cx_uint8_t Transmit_checksum(cx_uint8_t *data, cx_uint_t length)
     return result - 99;
 
 }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void transmit_reset()
-{
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-	if(_COM1_tx_timeout_count > 700)
-	{
-		_COM1_tx_timeout_count = 800;
-		memset(_DG_tx_buf[1], 0x00,26);
-	}
-	if(_COM2_tx_timeout_count > 700)
-	{
-		_COM2_tx_timeout_count = 800;
-		memset(_DG_tx_buf[2], 0x00,26);
-	}
-	if(_COM3_tx_timeout_count > 700)
-	{
-		_COM3_tx_timeout_count = 800;
-		memset(_DG_tx_buf[3], 0x00,26);
-	}
-	if(_COM4_tx_timeout_count > 700)
-	{
-		_COM4_tx_timeout_count = 800;
-		memset(_DG_tx_buf[4], 0x00,26);
-	}
-	if(_COM5_tx_timeout_count > 700)
-	{
-		_COM5_tx_timeout_count = 800;
-		memset(_DG_tx_buf[5], 0x00,26);
-	}
-	if(_COM6_tx_timeout_count > 700)
-	{
-		_COM6_tx_timeout_count = 800;
-		memset(_DG_tx_buf[6], 0x00,26);
-	}
-	if(_COM7_tx_timeout_count > 700)
-	{
-		_COM7_tx_timeout_count = 800;
-		memset(_DG_tx_buf[7], 0x00,26);
-	}
-	if(_COM8_tx_timeout_count > 700)
-	{
-		_COM8_tx_timeout_count = 800;
-		memset(_DG_tx_buf[8], 0x00,26);
-	}
-
-}
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-///////////////////////////////////// UART to SPI send ////////////////////////////////////////////////////////
+///////////////////////////////////// UART to SPI 전송 ////////////////////////////////////////////////////////
 void transmit(void)
 {
-	static cx_uint8_t chk[9];
-	static cx_uint_t i,j,k,l,m;
+	static cx_uint8_t chk;
 
+	chk =0;
 
-	memcpy(_DG_tx_buf[0],_data_,26);
+	chk = Transmit_checksum(_DG_tx_buf[0], 22);
 
-
-	for(k =1; k<9; k++)
+	if(_DG_tx_buf[0][22]==chk    /*임시 설정*/ )
 	{
+		static cx_uint_t i;
+		static cx_uint_t j;
+		static cx_uint_t k;
 
-		_DG_tx_buf[k][23] = 0x03;
-		_DG_tx_buf[k][24] = 0x0d;
-		_DG_tx_buf[k][25] = 0x0a;
-	}
-
-	for(m =1; m<9; m++)
-	{
-		chk[m] = Transmit_checksum(_DG_tx_buf[m], 22);
-	}
-
-	for(l =0; l<26; l++)
-	{
-		uarti2cspi_uartWrite(_DG_tx_buf[0][l]);
-
-	}
-
-
-	for(i=1; i<9; i++)
-	{
-
-		if( _DG_tx_buf[i][3] != 0x00 && _DG_tx_buf[i][22] == chk[i])
+		if(_DG_tx_buf[0][22] != chk )
 		{
+			return 0;
+		}
 
-			for(j=0; j<26; j++)
-			{
-				uarti2cspi_uartWrite(_DG_tx_buf[i][j]);
-			}
+		_DG_tx_buf[0][23] = 0x03;
+		_DG_tx_buf[0][24] = 0x0d;
+		_DG_tx_buf[0][25] = 0x0a;
+
+		if(CX_FALSE == _flag_COM1_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_1_TX_LED_GPIO_Port, RX_1_TX_LED_Pin, SET);
+		}
+
+		for( k= 0; k< sizeof(_COM1_rx_data); k++)
+		{
+			_COM1_rx_data[k]= 0x00;
 
 		}
-		memset(_DG_tx_buf[i], 0x00, 26);
-		memset(chk, 0x00, 9);
+
+
+
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+
+		for(  i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[0][i]);
+			_DG_tx_buf[0][i] = 0x00;
+
+		}
+
+
 	}
 
 
-/*
-*/
+
+
+	chk = Transmit_checksum(_DG_tx_buf[1], 22);
+
+	if(_DG_tx_buf[1][22]== chk )
+	{
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+
+		if(_DG_tx_buf[1][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[1][23] = 0x03;
+		_DG_tx_buf[1][24] = 0x0d;
+		_DG_tx_buf[1][25] = 0x0a;
+
+		if(CX_FALSE == _flag_COM2_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_2_TX_LED_GPIO_Port, RX_2_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM2_rx_data); k++)
+		{
+			_COM2_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+
+		for(i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[1][i]);
+			_DG_tx_buf[1][i] = 0x00;
+		}
+
+
+	}
+
+
+	chk = Transmit_checksum(_DG_tx_buf[2], 22);
+	if(_DG_tx_buf[2][22]==chk )
+	{
+
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[2][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[2][23] = 0x03;
+		_DG_tx_buf[2][24] = 0x0d;
+		_DG_tx_buf[2][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM3_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_3_TX_LED_GPIO_Port, RX_3_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k<sizeof(_COM3_rx_data); k++)
+		{
+			_COM3_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[2][i]);
+			_DG_tx_buf[2][i] = 0x00;
+
+
+		}
+
+	}
+
+	chk = Transmit_checksum(_DG_tx_buf[3], 22);
+	if(_DG_tx_buf[3][22] == chk)
+	{
+
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[3][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[3][23] = 0x03;
+		_DG_tx_buf[3][24] = 0x0d;
+		_DG_tx_buf[3][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM4_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_4_TX_LED_GPIO_Port, RX_4_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM4_rx_data); k++)
+		{
+			_COM4_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[3][i]);
+			_DG_tx_buf[3][i] = 0x00;
+
+		}
+
+
+	}
+	chk = Transmit_checksum(_DG_tx_buf[4], 22);
+	if(_DG_tx_buf[4][22] == chk)
+	{
+
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[4][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[4][23] = 0x03;
+		_DG_tx_buf[4][24] = 0x0d;
+		_DG_tx_buf[4][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM5_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_5_TX_LED_GPIO_Port, RX_5_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM5_rx_data); k++)
+		{
+			_COM5_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[4][i]);
+			_DG_tx_buf[4][i] = 0x00;
+
+
+		}
+
+
+	}
+	chk = Transmit_checksum(_DG_tx_buf[5], 22);
+	if(_DG_tx_buf[5][22] == chk)
+	{
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[5][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[5][23] = 0x03;
+		_DG_tx_buf[5][24] = 0x0d;
+		_DG_tx_buf[5][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM6_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_6_TX_LED_GPIO_Port, RX_6_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM6_rx_data); k++)
+		{
+			_COM6_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[5][i]);
+			_DG_tx_buf[5][i] = 0x00;
+
+		}
+
+
+
+	}
+	chk = Transmit_checksum(_DG_tx_buf[6], 22);
+	if(_DG_tx_buf[6][22] == chk)
+	{
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[6][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[6][23] = 0x03;
+		_DG_tx_buf[6][24] = 0x0d;
+		_DG_tx_buf[6][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM7_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_7_TX_LED_GPIO_Port, RX_7_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM7_rx_data); k++)
+		{
+			_COM7_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[6][i]);
+			_DG_tx_buf[6][i] = 0x00;
+
+		}
+
+	}
+	chk = Transmit_checksum(_DG_tx_buf[7], 22);
+	if(_DG_tx_buf[7][22] == chk)
+	{
+		static cx_uint8_t i;
+		static cx_uint8_t j;
+		static cx_uint8_t k;
+
+		if(_DG_tx_buf[7][22] != chk )
+		{
+			return 0;
+		}
+
+		_DG_tx_buf[7][23] = 0x03;
+		_DG_tx_buf[7][24] = 0x0d;
+		_DG_tx_buf[7][25] = 0x0a;
+
+
+		if(CX_FALSE == _flag_COM8_tx_done)
+		{
+			HAL_GPIO_WritePin(RX_8_TX_LED_GPIO_Port, RX_8_TX_LED_Pin, SET);
+		}
+
+
+		for( k= 0; k< sizeof(_COM8_rx_data); k++)
+		{
+			_COM8_rx_data[k]= 0x00;
+
+		}
+
+		for(  j = 0; j< 26; j++)
+		{
+			uarti2cspi_uartWrite(_data_[j]);
+
+		}
+		for( i = 0; i< 26; i++)
+		{
+			uarti2cspi_uartWrite(_DG_tx_buf[7][i]);
+			_DG_tx_buf[7][i] = 0x00;
+		}
+
+	}
 }
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
