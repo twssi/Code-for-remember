@@ -30,12 +30,6 @@ void player_data(int job)
         player.armor = player_zealot_default_armor,
         player.damage = player_zealot_default_damage;
 
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
-        
-        battle_data(player.damage,  player.health);
 
     }
 
@@ -46,10 +40,7 @@ void player_data(int job)
         player.armor = player_mage_default_armor;
         player.damage = player_mage_default_damage;
 
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
+   
     }
 
     else if(3 == job)
@@ -59,10 +50,7 @@ void player_data(int job)
         player.armor = player_mercenary_default_armor;
         player.damage = player_mercenary_default_damage;
         
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
+
     }
     
     else if(4 == job)
@@ -73,10 +61,6 @@ void player_data(int job)
         player.damage = player_paladin_default_damage;
         
 
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
     }
 
     else if(5 == job)
@@ -86,10 +70,7 @@ void player_data(int job)
         player.armor = player_rogue_default_armor;
         player.damage = player_rogue_default_damage;
 
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
+      
     }
 
     else if(6 == job)
@@ -99,10 +80,7 @@ void player_data(int job)
         player.armor = player_inquisitor_armor;
         player.damage = player_inquisitor_damage;
 
-        player_databuf[0] = player.health;
-        player_databuf[1] = player.mana;
-        player_databuf[2] = player.armor;
-        player_databuf[3] = player.damage;
+      
     }
 
 
@@ -201,6 +179,16 @@ void intro(void)
     printf("타락한곳에서 모든것이 하나로 모이니.\n");
     printf("그대는...준비되었는가?\n");
 }
+
+
+void combat_senario(void)
+{
+    printf("당신은 어두운 도시의 입구에 들어 섰습니다. 눈 앞에 보이는건 희미한 불빛이 새어 나오는 술집, 무언가 형체가 보이는 골목, 저 멀리 보이는 본성으로 향하는 큰길입니다.\n");
+    printf("당신은 어떤 길을 선택하시겠습니까? 1. 술집 2. 골목 3. 큰길\n");
+    
+}
+
+
 void battle_data(Player player, Monster monster)
 {
 

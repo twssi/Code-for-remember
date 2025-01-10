@@ -39,5 +39,5 @@ void characater_select(void);
 const char* player_job(int job);
 void player_data(int job);
 void monster_data(void);
-void battle_data(int damage, int health);
+void battle_data(Player player, Monster monster);
 void battle_info(void);
