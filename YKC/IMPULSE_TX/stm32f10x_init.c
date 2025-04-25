@@ -152,7 +152,7 @@ void TIME3_initial_PWM(void)
 
   /* Enable the TIM3 global Interrupt */
   NVIC_InitStructure.NVIC_IRQChannel = TIM3_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;  
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);    
@@ -188,14 +188,14 @@ void GPIO_port_initial(void)
 	//--------------------------------------------------------------------------
 	// Input setting GPIOB
 	/* 11: Read output Pulse Freq  */
-	GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_11;
+	GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_11 | GPIO_Pin_12;
 	GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
 
 	//--------------------------------------------------------------------------
 	// Input setting GPIOC
 	/* 2: mode SW input, 5: tx 1/2°è input  6: Pulse clock pin, 7~9: DI-4~2   */    
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_5 | GPIO_Pin_6;
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_5 ;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOC, &GPIO_InitStructure);    
 	
@@ -247,6 +247,12 @@ void GPIO_port_initial(void)
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOC, &GPIO_InitStructure);
 	
+		// Output setting GPIOC
+	/* 6: External Clock output   */
+	GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_6;
+	GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
 	//--------------------------------------------------------------------------
 	// Output setting GPIOD
 	/* 0~7: FND9~16, 8~11: DO-4~1 */
@@ -367,7 +373,7 @@ void TIME3_initial(void)
 /******************************************************************************************************/
 void TIME4_initial(void)
 {
-  /* TIM4 clock enable */   //max - 72mHz
+  /* TIM4 clock enable */   //max - 32mHz
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
   
   /* Time base configuration */
@@ -398,7 +404,7 @@ void TIME4_initial(void)
 /******************************************************************************************************/
 void TIME5_initial(void)
 {
-  /* TIM5 clock enable */   //max - 72mHz
+  /* TIM5 clock enable */   //max - 32mHz
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
   
   /* Time base configuration */
@@ -430,12 +436,12 @@ void TIME5_initial(void)
 /******************************************************************************************************/
 void TIME6_initial(void)
 {
-  /* TIM6 clock enable */   //max - 72mHz
+  /* TIM6 clock enable */   //max - 36mHz
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM6, ENABLE);
   
   /* Time base configuration */
-  TIM_TimeBaseStructure.TIM_Prescaler = 360-1;  
-  TIM_TimeBaseStructure.TIM_Period = 10-1; 
+  TIM_TimeBaseStructure.TIM_Prescaler = 72-1;  
+  TIM_TimeBaseStructure.TIM_Period = 50-1; 
   
   TIM_TimeBaseStructure.TIM_ClockDivision = 0x0;    
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; 
@@ -450,7 +456,7 @@ void TIME6_initial(void)
 
   /* Enable the TIM2 global Interrupt */
   NVIC_InitStructure.NVIC_IRQChannel = TIM6_IRQn;
-  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 5;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
   NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;  
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);    
@@ -467,7 +473,7 @@ void TIME7_initial(void)
   
   /* Time base configuration */
   TIM_TimeBaseStructure.TIM_Prescaler = 72-1;  
-  TIM_TimeBaseStructure.TIM_Period = 50-1; //100us
+  TIM_TimeBaseStructure.TIM_Period = 100-1; //100us
   
   TIM_TimeBaseStructure.TIM_ClockDivision = 0x0;    
   TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; 
@@ -488,6 +494,33 @@ void TIME7_initial(void)
   NVIC_Init(&NVIC_InitStructure);    
 }
 
+void TIME1_initial(void)
+{
+  /* TIM1 clock enable */   //max - 72mHz
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
+  
+  /* Time base configuration */
+  TIM_TimeBaseStructure.TIM_Prescaler = 72-1;  
+  TIM_TimeBaseStructure.TIM_Period = 100-1; //100us
+  
+  TIM_TimeBaseStructure.TIM_ClockDivision = 0x0;    
+  TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; 
+  
+  TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
+ 
+  /* TIM enable counter */
+  TIM_Cmd(TIM1, DISABLE);
+
+  /* TIM IT enable */
+  TIM_ITConfig(TIM1,TIM_IT_Update, ENABLE);
+
+  /* Enable the TIM2 global Interrupt */
+  NVIC_InitStructure.NVIC_IRQChannel = TIM1_UP_IRQn ;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;  
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&NVIC_InitStructure);    
+}
 
 /******************************************************************************************************/
 /* ADC_initial	:	ADC_ configuration   					      */												
@@ -678,6 +711,40 @@ void EXTI_initial(void)
 	EXTI_Init(&EXTI_InitStructure);
 }
 
+void EXTI_15_10_initial(void)
+{
+		 /* Enable GPIOA clocks */
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE); 
+	
+	/* Configure PA11 as input floating (EXTI Line11) */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_11;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);  
+	 
+	/* Enable the EXTI9_5 and EXTI15_10 Interrupt */
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority =4;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+	
+//	/* Configure the SysTick Handler Priority: Preemption priority and subpriority */
+//	NVIC_SystemHandlerPriorityConfig(SystemHandler_SysTick, !PreemptionPriorityValue, 0);
+	
+	
+	/* Connect EXTI Line11 to PA.11 */
+	//GPIO_EXTILineConfig(GPIO_PortSourceGPIOC,GPIO_PinSource10 );  
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA,GPIO_PinSource11 );  
+	//  GPIO_EXTILineConfig(GPIO_PortSourceGPIOD,GPIO_PinSource14 );  
+	//  GPIO_EXTILineConfig(GPIO_PortSourceGPIOD,GPIO_PinSource15 );  
+	
+	/* Configure EXTI Line8,9,14,15 to generate an interrupt on falling edge */  
+	EXTI_InitStructure.EXTI_Line = EXTI_Line11;
+	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+	EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTI_InitStructure);
+}
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 #if 0
@@ -749,14 +816,14 @@ void peripheral_initial(void)
 	
 	TIME4_initial();				// Timer4 , Run timer
 	   
-	switch (_tx_type)
-	{
-		case TX_CONTROL:
-			GPIO_port_initial_PWM();
-			TIME3_initial_PWM();
-			break;
+//	switch (_tx_type)
+//	{
+//		case TX_CONTROL:
+//			GPIO_port_initial_PWM();
+			
+//			break;
 
-		case TX_SUPERVISOR:
+//		case TX_SUPERVISOR:
 			GPIO_port_initial();	// gpio initial
 		
 			USART1_initial();		//RS-232 to RX
@@ -766,19 +833,21 @@ void peripheral_initial(void)
 			DMA_initial();          // DMA for adsac
 		
 			TIME2_initial();		// timer2 , Freq
-			TIME3_initial();		// timer3 , Clock
+//			TIME3_initial();		// timer3 , Clock
+			TIME3_initial_PWM();
 
 			TIME5_initial();		// timer5, AC voltage sense
-			TIME6_initial();		// timer6, current sense
-			
+			//TIME6_initial();		// timer6, current sense
+			TIME1_initial();
 			TIME7_initial();		// timer7, FND
 		
 			EXTI_initial();
-			break;
+			EXTI_15_10_initial();
+//			break;
 
-		default:
-			break;
-	}
+//		default:
+//			break;
+//	}
 
 }
 

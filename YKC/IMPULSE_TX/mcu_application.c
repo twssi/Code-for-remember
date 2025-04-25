@@ -10,8 +10,6 @@
 #include <math.h>
 
 #include "stm32f10x_init.h"
-#include "stm32f10x_bit_define.h"
-
 #include "mcu.h"
 
 #include "mcu_redundant.h"
@@ -31,17 +29,23 @@ static cx_uint_t _timer_count_0500_msec  			= 0u;
 static cx_uint_t _timer_count_1000_msec  			= 0u;
 static cx_uint_t _timer_count_5000_msec  			= 0u;
 static cx_uint_t _timer_count_2000_msec  			= 0u;
-static cx_uint_t _timer_count_transmit  			= 0u;
 
 static cx_uint_t _output_v_timer_count_0300_msec  	= 0u;
 static cx_uint_t _watchdog_timer_count_0100_msec	= 0u;
 static cx_uint_t _mode_sw_timer_count_0100_msec  	= 0u;
 
+static cx_uint_t _freq_count			  			= 0u;
+static cx_bool_t _freq_state			  			= IDLE;
+static cx_bool_t _freq_fail_state			  		= CX_FALSE;
+static cx_uint_t _freq_fail_count		  			= 0u;
+static cx_bool_t _freq_health_fail		  			= CX_FALSE;
+static cx_uint_t _freq_data				  			= 0u;
+
 static cx_uint_t _operating_time_second 			= 0u;
 static cx_uint_t _active_operating_time_second 		= 0u;
 
 static cx_bool_t _flag_get_output_voltage 	 		= CX_FALSE;
-static cx_bool_t _flag_get_impulse_voltage  		= CX_FALSE;	
+//static cx_bool_t _flag_get_impulse_voltage  		= CX_FALSE;	
 
 static cx_bool_t _external_watchdog_clock_enabled 	= CX_TRUE; //
 static cx_uint_t _external_watchdog_clock_output  	= 0u;
@@ -88,6 +92,10 @@ static cx_uint_t _fail_condition_outputvoltage 	= CX_FALSE;
 
 cx_uint_t _application_halt				= CX_FALSE;				
 
+static cx_uint_t cur_debounce_count = 0u;
+static cx_uint_t pre_debounce_count = 0u;
+
+
 static __IO uint32_t TimingDelay;
 //-----------------------------------------------------------------------
 // reg -> bfifo -> bsb -> stream
@@ -103,6 +111,8 @@ static cx_byte_t _com3_fifo_rx_buffer      [64];
 //--------------fnd 표시 변수 선언-----------------------------------------
 cx_bool_t _fnd0[5];
 cx_bool_t _fnd1[5];
+
+#define	F_CLK			1000000
 
 #define FND_CH_00(pos)  ((pos)&0x000f)<<0   // first line
 #define FND_CH_01(pos)  ((pos)&0x000f)<<4   // second line
@@ -128,6 +138,7 @@ cx_bool_t _fnd1[5];
 #define FND_CHAR_A     0x77
 #define FND_CHAR_V     0x3E
 
+
 //===========================================================================
 static message_queue_t _nb_o_message_queue  ;
 static message_t       _nb_o_message        [NB_O_MESSAGE_MAX_COUNT];
@@ -146,6 +157,7 @@ static cx_byte_t _message [NB_O_MESSAGE_MAX_SIZE];
 //===========================================================================
 /* Private function prototypes -----------------------------------------------*/
 void delay_msec (__IO cx_uint_t msec);
+static void control_impulse_voltage_input (void);
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -160,6 +172,7 @@ static void external_watchdog_clock_output_irq_handler (void)
 	{
 		_external_watchdog_clock_output = (0u==_external_watchdog_clock_output)?1u:0u;
 		GPIO_O_EXTERNAL_WATCHDOG_CLOCK (_external_watchdog_clock_output);
+		
 	}
 }
 
@@ -175,14 +188,39 @@ void calculate_adc_irq_handler (void)
 
 void get_impulse_voltage_irq_handler (void)
 {
-	_flag_get_impulse_voltage = CX_TRUE;	//50us
+//	_flag_get_impulse_voltage = CX_TRUE;	//50us
+	_freq_count++;
+	if(_freq_count > 3436)
+	{
+		_freq_state 	= IDLE;
+		_freq_fail_state = CX_TRUE;
+		if(_freq_count >= 10000)
+		{
+			_freq_data = 0;
+			_freq_count 	= 10000;
+		}
+	}
+	if(_freq_fail_state == CX_TRUE)
+	{
+		if(_freq_fail_count++ >= 30000)
+		{
+			_freq_health_fail = CX_TRUE;
+			_freq_fail_count = 30000;
+		}
+	}
+	else
+	{
+		_freq_fail_count	= 0;
+		_freq_health_fail 	= CX_FALSE;
+	}
+	control_impulse_voltage_input();
 }
 
 //-----------------------------------------------------------------------
 static void output_voltage_measure_irq_handler (void)
 {
 	_output_v_timer_count_0300_msec++;
-    if (_output_v_timer_count_0300_msec>315u*2 && _output_v_timer_count_0300_msec<326u*2)    
+    if (_output_v_timer_count_0300_msec>280u*2 && _output_v_timer_count_0300_msec<310u*2)    
 	{
 		//_output_v_timer_count_0300_msec = 0u;
 
@@ -192,6 +230,17 @@ static void output_voltage_measure_irq_handler (void)
 	{
 		_flag_get_output_voltage 	= CX_FALSE;	
 	}
+}
+
+static void output_voltage_measure_irq_handler1 (void)
+{
+	_output_v_timer_count_0300_msec++;
+    if (_output_v_timer_count_0300_msec>300u*2)    
+	{
+		_output_v_timer_count_0300_msec = 0u;
+
+		_flag_get_output_voltage 	= CX_TRUE;		
+	}	
 }
 
 //-----------------------------------------------------------------------
@@ -226,7 +275,6 @@ static void timer_run_irq_handler(void)
 	//-----------------------------------------------------------------------
 	_flag_control_output = CX_TRUE;	
 
-	
 	//-----------------------------------------------------------------------
 	_timer_count_5000_msec++;
 	if (_timer_count_5000_msec>5000u*2)
@@ -305,8 +353,11 @@ static void timer_run_irq_handler(void)
 	}
 	//-----------------------------------------------------------------------
 	_timer_count_0050_msec++;
+	cur_debounce_count++;
+
 	if (_timer_count_0050_msec>50u*2)
 	{
+		
 		_timer_count_0050_msec = 0u;
 		
 		//-------------------------------------------------------------------	
@@ -314,13 +365,13 @@ static void timer_run_irq_handler(void)
 	}
 	
 	//-----------------------------------------------------------------------
-	_timer_count_transmit++;
+	//_timer_count_transmit++;
 	
 	_timer_count_50_msec++;
 	if (_timer_count_50_msec>200u*2)
 	{
 		_timer_count_50_msec = 0u;
-
+		
 		_flag_transmit = CX_TRUE;
 	}
 
@@ -357,7 +408,7 @@ void timer_500usec_irq_handler (void) // stm32f_it.c에서 호출(500us 주기)
 		timer_boot_irq_handler();
 	}
 	
-	// if (CX_TRUE==_output_voltage_measure_run) output_voltage_measure_irq_handler();
+	// if (CX_TRUE==_output_voltage_measure_run) output_voltage_measure_irq_handler1();
 	output_voltage_measure_irq_handler();
 	
 }
@@ -480,20 +531,31 @@ void put_str(cx_byte_t *str) {
 //===========================================================================
 void rising_edge_flag_TIM2 (void)
 {	
+	/*//20241211
 	_impulse_voltage_measure_run  = CX_TRUE;
 	set_flag_rising_edge_pin_freq();	
 	
-	_check_rising_edge_tim2 = 0u;
 	
 	_timer_count_transmit=0u;
+	*/
+	_impulse_voltage_measure_run  = CX_TRUE;//20241211
+	_check_rising_edge_tim2 = 0u;
+	_check_TIM2_freq_OVC = 0; ///PWS 추가
 }
 
 //===========================================================================
+
 void rising_edge_flag_TIM3 (void) //stm32f_it.c에서 호출 input capture
 {
 	_output_voltage_measure_run = CX_TRUE;
 	_output_v_timer_count_0300_msec = 0u;
 	_check_rising_edge_tim3 = 0u;
+////////////////////
+	TEST_O=!TEST_O;	
+	set_flag_rising_edge_pin_freq();	//20241211
+	
+//	_timer_count_transmit=0u;//20241211
+	//////////////////////
 }
 
 //===========================================================================
@@ -545,14 +607,13 @@ void calculate_inputcapture_TIM2 (void)
 		/* Frequency computation */ 
 		pulse_frequecy_TIM2 = ((cx_float32_t)(72000000/2400) / capture_value);	//2400 : Timer2�� TIM_Prescaler
 		
-		put_pulse_frequency(pulse_frequecy_TIM2, 2);
-		
-		_check_TIM2_freq_OVC = 0; ///PWS 추가
+	//	put_pulse_frequency(pulse_frequecy_TIM2, 2); //20241211
 	
+		//_check_TIM2_freq_OVC = 0; ///PWS 추가
 		_capture_number_TIM2 = 0;	
 	}
 }
-
+#if 0
 void calculate_inputcapture_TIM3 (void)
 {
 	static cx_uint16_t _capture_number_TIM3	= 0u;
@@ -561,18 +622,18 @@ void calculate_inputcapture_TIM3 (void)
 
 	cx_uint16_t capture_value			= 0u;
 	cx_float32_t pulse_frequecy_TIM3 	= 0.0;
-			
+	
 	if(_capture_number_TIM3 == 0)
 	{
 		/* Get the Input Capture value */
-		_readvalue1_TIM3 = TIM_GetCapture1(TIM3);
+		_readvalue1_TIM3 = TIM_GetCounter(TIM2);
 		
 		_capture_number_TIM3 = 1;
 	}
 	else if(_capture_number_TIM3 == 1)
 	{
 		/* Get the Input Capture value */
-		_readvalue2_TIM3 = TIM_GetCapture1(TIM3); 
+		_readvalue2_TIM3 = TIM_GetCounter(TIM2); 
 			 
 		/* Capture computation */
 		if (_readvalue2_TIM3 > _readvalue1_TIM3)
@@ -588,20 +649,59 @@ void calculate_inputcapture_TIM3 (void)
 		pulse_frequecy_TIM3 = ((cx_float32_t)(72000000/2400) / capture_value);	//2400 : Timer2�� TIM_Prescaler
 		
 		put_pulse_frequency(pulse_frequecy_TIM3, 3);
+		if(_flag_worker_state==CX_TRUE)	put_pulse_frequency(pulse_frequecy_TIM3, 2);//20241211
 	
 		_capture_number_TIM3 = 0;	
 	}
 }
 
+#endif
 
+
+void calculate_inputcapture_TIM3 (void)
+{
+	static cx_uint_t gu32_T1H	= 0;
+	static cx_uint_t gu32_T2H	= 0;
+	static cx_uint_t gu32_Ticks	= 0;
+	static cx_uint_t gu32_Freq	= 0;
+
+	if(_freq_state == IDLE)
+	{
+			_freq_count 	= 0;
+			_freq_state 	= DONE;
+	}
+	else if(_freq_state == DONE)
+	{
+		if(_freq_count >= 100)
+		{
+			gu32_T1H 		= _freq_count;
+			gu32_Freq 		= (uint32_t)(F_CLK/gu32_T1H);
+			_freq_state 	= IDLE;
+			_freq_count		= 0;
+
+			_freq_data		= gu32_Freq;
+			
+			if(_freq_data==301 || _freq_data == 299) _freq_data = 300; // 3Hz
+
+			if ( (291>_freq_data) || (309<_freq_data) )
+			{
+				_freq_fail_state = CX_TRUE;
+			}
+			else 
+			{
+				_freq_fail_state = CX_FALSE;
+			}
+		}
+	}
+}
 
 static void control_impulse_voltage_input (void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE ==_flag_get_impulse_voltage)	//50us, 0.05ms
-	{
-		return;
-	}
+	//if (CX_FALSE ==_flag_get_impulse_voltage)	//190us, 0.1ms
+	//{
+	//	return;
+	//}
 	//-----------------------------------------------------------------------		
 	if (CX_FALSE ==_impulse_voltage_measure_run)	//Frq 핀 rising edge 시
 	{
@@ -614,13 +714,13 @@ static void control_impulse_voltage_input (void)
     //edge후 바로 정펄스 측 clear핀 제어
 	GPIO_O_IMPULSE_CLR1(0); 	//정펄스
 	//부펄스
-	if(_impulse_measure_count>=50)   	//2.5ms
+	if(_impulse_measure_count>=25)   	//2.5ms
 	{
 		GPIO_O_IMPULSE_CLR2(0);	//부펄스
 	} 
 
 
-	if(_impulse_measure_count>=200)		//0.05ms * 200 = 10ms
+	if(_impulse_measure_count>=100)		//0.05ms * 200 = 10ms
 	{		
 		_active_measure_impulse_voltage = CX_TRUE;
 		GPIO_O_IMPULSE_CLR1(1); 	
@@ -641,7 +741,7 @@ static void control_impulse_voltage_input (void)
 				
 		_impulse_voltage_measure_run = CX_FALSE;	//clear
 	}	
-	_flag_get_impulse_voltage 	= CX_FALSE;	//clear
+//	_flag_get_impulse_voltage 	= CX_FALSE;	//clear
 }
 
 
@@ -814,57 +914,12 @@ static void update_ostream (void)
 //===========================================================================
 static void transmit (void)
 {
-#if 1
 	//-----------------------------------------------------------------------
-	if (_timer_count_transmit<380) // 펄스 출력 후 190ms 마다 통신.. 시리얼 통신에 의한 ADC 입력 영향 방지
+	if (_flag_transmit==CX_FALSE) // 
 	{
 		return;
 	}
-#endif  
-
-#if 0
-        if (_flag_transmit==CX_FALSE) // 펄스 출력 후 190ms 마다 통신.. 시리얼 통신에 의한 ADC 입력 영향 방지
-	{
-		return;
-	}
-#endif  		
-	//-----------------------------------------------------------------------
-	/*
-	cx_uint_t tx_size;
-
-	cx_byte_t message[NB_O_MESSAGE_MAX_SIZE];
-	cx_uint_t message_size;
-
-	nb_packet_t packet;
-
-	
-
-	
-	//-----------------------------------------------------------------------
-
-	if (message_queue_count(&_nb_o_message_queue)>0u)
-	{
-		message_size = sizeof(message);
-	
-		message_queue_pop(&_nb_o_message_queue, message, &message_size);
-
-		if (message_size>6u)
-		{
-			
-			packet.body.pointer     = &message[6];
-			packet.body.size        = message_size-6u;
-
-			tx_size = nb_packet_make(_nb_tx_buffer, sizeof(_nb_tx_buffer), &packet);
-			if (tx_size>0u)
-			{
-				com_send_buffer(COM1, _nb_tx_buffer, tx_size);
-			}		
-		}
-	}
-
-	//-----------------------------------------------------------------------
-	*/
-        
+		
 	cx_uint_t  impulse_voltage_plus;
 	cx_uint_t  impulse_voltage_minus;
 	cx_uint_t  output_voltage;
@@ -881,8 +936,9 @@ static void transmit (void)
 	ac_voltage = get_ac_voltage_value();
 
 	tx_current = (cx_uint_t)(get_tx_current_value())/10;	
-	tx_frequency = (cx_uint_t)(get_3hz_frequency_FREQ_value()*100);
+	tx_frequency = _freq_data;
 	//////////////////////////////////////////////////////////////
+	/*
 	if(_flag_worker_state==CX_FALSE)
 	{
 		impulse_voltage_plus=0;
@@ -890,6 +946,7 @@ static void transmit (void)
 		tx_frequency=0;
 		tx_current=0;
 	}
+	*/
 	_com1_tx_buffer[0] = 0x02;
 	ac_voltage = ac_voltage/10;
 	for(i=0;i<3;i++)
@@ -931,23 +988,8 @@ static void transmit (void)
 	_com1_tx_buffer[23]=0x0A;
 	
 	
-        
-	// if ( CX_TRUE==_flag_worker_state )  
-	// {
-	// 	if(_timer_count_transmit > 200 && _timer_count_transmit<=580)
-	// 	{
-	// 		put_str(_com1_tx_buffer);
-	// 		_flag_transmit = CX_FALSE;
-	// 	}
-	// }
-	// else
-	// {
-	// 	put_str(_com1_tx_buffer);
-		
-	// }
-
 	put_str(_com1_tx_buffer);
-	_timer_count_transmit = CX_FALSE;
+	//_timer_count_transmit = CX_FALSE;
 	_flag_transmit=CX_FALSE;
 
 }
@@ -1014,7 +1056,7 @@ static void control_watch (void)
 	//-----------------------------------------------------------------------
 //	if(_active_operating_time_second >= 1u)	//주계된 후 3초 이후부터 watch
 //	{
-		analog_data_control_watch();
+		//analog_data_control_watch();
 	
 		//580V 출력전압 감시..
 		_health_output_voltage = output_voltage_control_watch();
@@ -1156,7 +1198,11 @@ static void control_output(void) //  주부계 Switch
 	GPIO_O_CPU_LED_STATUS 	(CX_TRUE == _application_halt ? 0u : 1u);
 	
 	//GPIO_O_MCU_SMPS_Control		(_output_smps_output_control);
-	GPIO_O_SwitchOver_Control       (_output_smps_output_control); // PWS 절체 사용시 주석 제거
+	if(GPIO_TEST_MODE() == CX_TRUE)
+	{
+		GPIO_O_SwitchOver_Control       (_output_smps_output_control); // PWS 절체 사용시 주석 제거
+	}
+	
 	//GPIO_O_MCU_TIM_State		(_output_smps_output_control);
 	
 	//-----------------------------------------------------------------------	
@@ -1185,8 +1231,8 @@ void io_control_initialize (void)
 {
 	//-----------------------------------------------------------------------
 	GPIO_O_SwitchOver_Control(1);	
-	GPIO_O_MCU_TIM_State(1);
-	GPIO_O_MCU_TIM_Data(1);
+	GPIO_O_MCU_TM_State(1);
+	GPIO_O_MCU_TM_Data(1);
 	
 	GPIO_O_CPU_LED_STATUS (0);
 	
@@ -1443,6 +1489,7 @@ void fnd_output_data(const cx_uint_t id, const cx_bool_t* bufptr, cx_uint_t bufs
 //-----------------------------------------------------------------------
 void output_fnd_display(void)
 {
+
 	if ( CX_TRUE==_flag_worker_state )	//주계만 ON
 	{
 		_flag_active_display = CX_TRUE;
@@ -1456,13 +1503,14 @@ void output_fnd_display(void)
 //-----------------------------------------------------------------------
 void input_front_mode_button(void)
 {		
-	_count_active_fnd_display = 0u;	//누를때마다 FND off를 위한 카운트 클리어, 시간지나서 off시키기 위한 변수
+
 			
 	if(CX_TRUE == _status_mode_switch)
 	{
 		_flag_active_mode_switch = CX_TRUE;
 			
 		_status_mode_switch = CX_FALSE;
+		_count_active_fnd_display = 0u;	//누를때마다 FND off를 위한 카운트 클리어, 시간지나서 off시키기 
 	}
 }
 
@@ -1475,16 +1523,21 @@ void check_front_button(void)
 	}
 	//-----------------------------------------------------------------------
 	static cx_uint_t _input_mode_sw = 0u;
-	
 	_flag_active_display = CX_TRUE;
-	
 	_input_mode_sw = GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_2);
+	
 	if(_input_mode_sw == 1)
 	{
-		_status_mode_switch = CX_TRUE;
-		_display_sequence++;
-		if(_display_sequence>=4) _display_sequence = 1u;
-		_flag_active_mode_switch = CX_FALSE;
+		if(cur_debounce_count-pre_debounce_count > 200u)
+		{
+	
+			_status_mode_switch = CX_TRUE;
+			_display_sequence++;
+			if(_display_sequence>=4) _display_sequence = 1u;
+			_flag_active_mode_switch = CX_FALSE;
+
+			pre_debounce_count = cur_debounce_count;
+		}
 	}	
 	
 	//-----------------------------------------------------------------------
@@ -1526,7 +1579,7 @@ void make_fnd_data (void)
 	int_tx_current 		= get_tx_current_value()/10;	//??단위는 다시 확인
     tx_current = (cx_float_t)int_tx_current/10;
 	
-	tx_frequency 	= get_3hz_frequency_FREQ_value();
+	tx_frequency 	= (cx_float_t)_freq_data/100;
     	
 	switch (_display_sequence)
 	{
@@ -1629,7 +1682,7 @@ static void check_fault (void)
 #if 1	
 		if(_active_operating_time_second >= 20u)	//주계된 후 10초 이후 
 		{
-			if (CX_FALSE==_analog_data.pulse_frequency.health)	//주파수 고장
+			if (_freq_health_fail == CX_TRUE)	//주파수 고장
 			{
 				debug_printf("# FREQUENCY FAIL \n");
 				_flag_worker_health_state=CX_FALSE;	
@@ -1706,7 +1759,8 @@ cx_bool_t application_initialize (void)
 	debug_printf("# ENABLE HARDWARE TIMER \n");
 	TIM_Cmd(TIM4, ENABLE);
     TIM_Cmd(TIM5, ENABLE);
-	TIM_Cmd(TIM6, ENABLE);
+	//TIM_Cmd(TIM6, ENABLE);
+	TIM_Cmd(TIM1, ENABLE);
 	
 
 	//-----------------------------------------------------------------------
@@ -1776,11 +1830,12 @@ void hw_gpio_initialize (void)
 	//-----------------------------------------------------------------------
 	//GPIO_O_MCU_SMPS_Control(1);	
 	GPIO_O_SwitchOver_Control (1);
-	GPIO_O_MCU_TIM_State(1);
-	GPIO_O_MCU_TIM_Data(1);
+	GPIO_O_MCU_TM_State(1);
+	GPIO_O_MCU_TM_Data(1);
 	//-----------------------------------------------------------------------
 	GPIO_O_IMPULSE_CLR1 (1); 
     GPIO_O_IMPULSE_CLR2 (1); 
+
 	
 	//-----------------------------------------------------------------------
 }
@@ -1874,9 +1929,9 @@ void application_run (void)
     	t2 = _operating_time_second;
 		
 		//recrption
-		reception (CX_TRUE);
-		update_istream();
-		update_equipment();
+		//reception (CX_TRUE);
+		//update_istream();
+		//update_equipment();
 		//3hz Freq핀 주파수 감시
 		//Feq_health_check();
 		
@@ -1889,7 +1944,7 @@ void application_run (void)
 		
 		//Measure ADC
 		control_output_voltage_input();
-		control_impulse_voltage_input();
+	
 		
 		// fail 체크, 이중계
 		//check_watchdog_input_data();	// 외부 와치독 입력 체크
@@ -1900,7 +1955,7 @@ void application_run (void)
 		control_output();
 		
 		// Transmit
-		update_ostream();
+		//update_ostream();
 		transmit ();
 		
 		//check mode switch

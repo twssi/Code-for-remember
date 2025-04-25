@@ -26,6 +26,7 @@
 #include "mcu.h"
 #include "main.h"
 
+unsigned long long int _button_cnt=0;
 /** @addtogroup STM32F10x_StdPeriph_Examples
   * @{
   */
@@ -300,7 +301,7 @@ void TIM2_IRQHandler(void)
 	{
 		/* Clear TIM2 Capture Compare1 interrupt pending bit*/		
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-                check_impuls_freqout();
+    check_impuls_freqout();
 	}
 	
 	if(TIM_GetITStatus(TIM2,TIM_IT_CC4) != RESET)	
@@ -308,7 +309,7 @@ void TIM2_IRQHandler(void)
         /* Clear TIM2 Capture compare interrupt pending bit */
 		TIM_ClearITPendingBit(TIM2, TIM_IT_CC4);
 		
-		calculate_inputcapture_TIM2();	//PIN Freq 
+		//calculate_inputcapture_TIM2();	//PIN Freq 
         rising_edge_flag_TIM2();
     }
 }
@@ -335,13 +336,14 @@ void TIM3_IRQHandler(void)
 	{
 		/* Clear TIM3 Capture Compare1 interrupt pending bit*/
 		TIM_ClearITPendingBit(TIM3, TIM_IT_CC1);
-		
-		if(2u == type)	//supervisor
-		{
-			calculate_inputcapture_TIM3 ();	//PIN clock
-        	rising_edge_flag_TIM3();	         
-		}
-		else;
+	
+//		if(2u == type)	//supervisor
+//		{
+//			calculate_inputcapture_TIM3 ();	//PIN clock
+      
+ //     rising_edge_flag_TIM3();	         
+//		}
+//		else;
 	}
 	
 }
@@ -394,9 +396,9 @@ void TIM6_IRQHandler(void)
 	if (TIM_GetITStatus(TIM6,TIM_IT_Update) != RESET)
 	{
 		//50us
-		get_tx_current_irq_handler();
 		
-		get_impulse_voltage_irq_handler ();	
+		
+	//
 		
 		/* Clear TIM4 Capture Compare1 interrupt pending bit*/
 		TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
@@ -415,10 +417,23 @@ void TIM7_IRQHandler(void)
 {
 	if (TIM_GetITStatus(TIM7,TIM_IT_Update) != RESET)
 	{
-		output_fnd_display();	//fnd Ãâ·Â
+		output_fnd_display();	//fnd ï¿½ï¿½ï¿½
 				
 		/* Clear TIM4 Capture Compare1 interrupt pending bit*/
 		TIM_ClearITPendingBit(TIM7, TIM_IT_Update);
+	}	
+}
+
+
+void TIM1_UP_IRQHandler(void)
+{
+	if (TIM_GetITStatus(TIM1,TIM_IT_Update) != RESET)
+	{
+    get_impulse_voltage_irq_handler ();	
+    get_tx_current_irq_handler();
+      
+    /* Clear TIM4 Capture Compare1 interrupt pending bit*/
+    TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
 	}	
 }
 
@@ -442,8 +457,45 @@ void EXTI2_IRQHandler(void)
 	{
 		/* Clear the EXTI line 2 pending bit */
 		EXTI_ClearITPendingBit(EXTI_Line2);
-		  
 		input_front_mode_button();
+   
+  }
+}
+
+/*******************************************************************************
+* Function Name  : EXTI9_5_IRQHandler
+* Description    : This function handles External lines 9 to 5 interrupt request.
+* Input          : None
+* Output         : None
+* Return         : None
+*******************************************************************************/
+void EXTI9_5_IRQHandler(void)
+{
+	if(EXTI_GetITStatus(EXTI_Line7) != RESET)
+	{
+          /* Clear the EXTI line 14 pending bit */
+          EXTI_ClearITPendingBit(EXTI_Line7);
+
+     }
+}
+
+/*******************************************************************************
+* Function Name  : EXTI15_10_IRQHandler
+* Description    : This function handles External lines 15 to 10 interrupt request.
+* Input          : None
+* Output         : None
+* Return         : None
+*******************************************************************************/
+void EXTI15_10_IRQHandler(void) // clock feedback
+{
+  if(EXTI_GetITStatus(EXTI_Line11) != RESET)
+  {
+    /* Clear the EXTI line 14 pending bit */
+    EXTI_ClearITPendingBit(EXTI_Line11);
+    calculate_inputcapture_TIM3 ();	//PIN clock
+      
+    rising_edge_flag_TIM3();	
+
   }
 }
 

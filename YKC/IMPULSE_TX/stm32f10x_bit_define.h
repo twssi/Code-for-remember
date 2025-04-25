@@ -174,7 +174,7 @@ typedef union {
 #define tm7fg	tm.s._tm7fg
 
 /********************************Gpio Group bit contorl **************************************************/
-#if 0
+#if 1
 
 #define GpioA	((SFR16*)(GPIOA_BASE+0x0c))
 #define GpioB	((SFR16*)(GPIOB_BASE+0x0c))

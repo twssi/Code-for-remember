@@ -51,7 +51,16 @@ static void config_update_gpio_input (void)
 	temp_ReadID2 = GPIO_ReadInputData(GPIOC);
 	temp_ReadID2 = ~(temp_ReadID2) & 0x000F;		
 	rotary_sw_2 = (temp_ReadID2 >> 0)&0x0F;	//SW 2 read
-		
+
+	/*
+	temp_ReadID1 = GPIO_ReadInputData(GPIOC);
+	temp_ReadID1 = ~(temp_ReadID1) & 0x000F;
+	rotary_sw_1 = (temp_ReadID1 >> 2)&0x0F;  //SW 1 read   
+
+	temp_ReadID2 = GPIO_ReadInputData(GPIOE);
+	temp_ReadID2 = ~(temp_ReadID2) & 0x3C;		
+	rotary_sw_2 = (temp_ReadID2 >> 0)&0x0F;	//SW 2 read
+	*/	
 	//-----------------------------------------------------------------------	
 	rotary_sw_1 = reverse4(rotary_sw_1);	//reverse
 	rotary_sw_2 = reverse4(rotary_sw_2);	//reverse

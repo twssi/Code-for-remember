@@ -218,6 +218,7 @@ void USART1_IRQHandler(void)
 	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
 	{
 		com_rx_irq_handler(COM1);
+    USART_ClearITPendingBit(USART1, USART_IT_RXNE);
 	}
 	else
 	if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET)
@@ -238,8 +239,8 @@ void USART2_IRQHandler(void)
 {
 	if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
 	{
-		com_rx_irq_handler(COM2);
-		OnUart4_Recv ( USART_ReceiveData(USART2)&0xff );
+    com_rx_irq_handler(COM2);
+    OnUart4_Recv ( USART_ReceiveData(USART2)&0xff ); 
 		USART_ClearITPendingBit(USART2, USART_IT_RXNE);
 	}
 	else
@@ -261,8 +262,10 @@ void USART3_IRQHandler(void)
 	if (USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
 	{
 		com_rx_irq_handler(COM3);
-                
-	}
+    
+   	USART_ClearITPendingBit(USART3, USART_IT_RXNE);
+	}    
+	
 	else
 	if (USART_GetITStatus(USART3, USART_IT_TXE) != RESET)
 	{
@@ -282,13 +285,15 @@ void UART4_IRQHandler(void)
 	if (USART_GetITStatus(UART4, USART_IT_RXNE) != RESET)
 	{
 		com_rx_irq_handler(COM4);
-		OnUart3_Recv ( USART_ReceiveData(UART4)&0xff );
+    OnUart3_Recv ( USART_ReceiveData(UART4)&0xff );
+            
 		USART_ClearITPendingBit(UART4, USART_IT_RXNE);
                 
 	}
 	else
 	if (USART_GetITStatus(UART4, USART_IT_TXE) != RESET)
 	{
+    
 		com_tx_irq_handler(COM4);
 	}
 }
@@ -309,7 +314,7 @@ void DMA1_Channel1_IRQHandler(void)
 		/* Clear DMA1 Channel6 Half Transfer, Transfer Complete and Global interrupt pending bits */
 		DMA_ClearITPendingBit(DMA1_IT_TC1);
         
-        measure_current_irq_handler();	//adc dma
+    //measure_current_irq_handler();	//adc dma
 	}
 }
 /*******************************************************************************
@@ -353,7 +358,7 @@ void TIM3_IRQHandler(void)
 		TIM_ClearITPendingBit(TIM3, TIM_IT_CC2);
 		
 		calculate_inputcapture_TIM3 ();
-        rising_edge_flag_TIM3();
+    rising_edge_flag_TIM3();
 	}
 	
 }
@@ -369,6 +374,7 @@ void TIM4_IRQHandler(void)
 	if (TIM_GetITStatus(TIM4,TIM_IT_Update) != RESET)
 	{
 		timer_500usec_irq_handler();
+    //get_impulse_voltage_irq_handler();
 		/* Clear TIM4 Capture Compare1 interrupt pending bit*/
 		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
 	}	
@@ -385,7 +391,7 @@ void TIM5_IRQHandler(void)
 {
 	if (TIM_GetITStatus(TIM5,TIM_IT_Update) != RESET)
 	{
-		output_fnd_display();	//fnd Ãâ·Â
+		output_fnd_display();	//fnd ï¿½ï¿½ï¿½
     
 		/* Clear TIM5 Capture Compare1 interrupt pending bit*/
 		TIM_ClearITPendingBit(TIM5, TIM_IT_Update);

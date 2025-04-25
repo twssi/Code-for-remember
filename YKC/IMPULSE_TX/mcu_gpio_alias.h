@@ -51,10 +51,11 @@ GPIO_ALIAS_API void      GPIO_O_IMPULSE_CLR2 		(cx_uint_t v) 	{ GPIO_WriteBit(GP
 
 //GPIO_ALIAS_API void      GPIO_O_MCU_SMPS_Control 	(cx_uint_t v) 	{ GPIO_WriteBit(GPIOB, GPIO_Pin_1 , (BitAction)v); }
 GPIO_ALIAS_API void      GPIO_O_SwitchOver_Control 	(cx_uint_t v) 	{ GPIO_WriteBit(GPIOB, GPIO_Pin_10, (BitAction)v); }
-GPIO_ALIAS_API void      GPIO_O_MCU_TIM_State     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_0 , (BitAction)v);  } 
-GPIO_ALIAS_API void      GPIO_O_MCU_TIM_Data     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_1 , (BitAction)v);  } 
+GPIO_ALIAS_API void      GPIO_O_MCU_TM_State     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_0 , (BitAction)v);  } 
+GPIO_ALIAS_API void      GPIO_O_MCU_TM_Data     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_1 , (BitAction)v);  } 
 
 GPIO_ALIAS_API cx_uint_t GPIO_I_Manual_Switch_INPUT (void)		{ return GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_3  ); }
+GPIO_ALIAS_API cx_uint_t GPIO_TEST_MODE          	(void)      { return GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_12 ); }	 
 //===========================================================================
 
 #endif

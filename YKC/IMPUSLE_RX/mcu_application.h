@@ -35,4 +35,9 @@ MCU_API cx_uint_t get_active_transmitter (void);
 MCU_API void OnUart3_Recv (cx_uint8_t ch);
 MCU_API void OnUart4_Recv (cx_uint8_t ch);
 
+MCU_API void check_state_Transmitter(void);
+
+MCU_API void get_impulse_voltage_irq_handler (void);
+
+
 #endif

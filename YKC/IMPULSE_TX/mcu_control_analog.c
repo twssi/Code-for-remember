@@ -6,6 +6,7 @@
 #include "mcu.h"
 #include "stm32f10x_init.h"
 #include "stm32f10x_dma.h"
+#define TEST_O 			GpioD->Bit.b8
 
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
@@ -14,9 +15,10 @@ DMA_InitTypeDef DMA_InitStructure;
 
 //-----------------------------------------------------------------------	
 #define SAMPLING_COUNT_OUTPUT_VOLTAGE		60u
+#define OLD_SAMPLING_COUNT_OUTPUT_VOLTAGE	10u
 //#define SAMPLING_COUNT_PULSE_FREQ			1u
 #define SAMPLING_COUNT_PULSE_FREQ			10u
-#define SAMPLING_COUNT_IMPULSE_VOLTAGE		10u
+#define SAMPLING_COUNT_IMPULSE_VOLTAGE		3u
 #define SAMPLING_COUNT_AC_VOLTAGE			200u
 #define MEASURED_AC_VOLTAGE					200u
 #define SAMPLING_COUNT_TX_CURRENT			100u
@@ -26,14 +28,14 @@ DMA_InitTypeDef DMA_InitStructure;
 #define PIN_CLOCK 							3u
 #define PIN_FREQ  							2u
 
-#define COUNT_IMPULSE_Value					190u
+#define COUNT_IMPULSE_Value					100u
 //-----------------------------------------------------------------------	
 static cx_uint16_t _ADC_ValueTab[ADC_CHANNEL] = {0,};
 
 static cx_uint16_t _array_sampling_ac_sense[SAMPLING_COUNT_AC_VOLTAGE]		= {0, };
 static cx_uint16_t _array_sampling_tx_current[SAMPLING_COUNT_TX_CURRENT] 	= {0, };
-	static cx_uint16_t 	_array_PA_0[COUNT_IMPULSE_Value]  = {0, };
-    static cx_uint16_t 	_array_PA_1[COUNT_IMPULSE_Value]  = {0, };
+static cx_uint16_t 	_array_PA_0[COUNT_IMPULSE_Value]  = {0, };
+static cx_uint16_t 	_array_PA_1[COUNT_IMPULSE_Value]  = {0, };
 
 static cx_uint_t	_watch_output_voltage[SAMPLING_COUNT_OUTPUT_VOLTAGE] = {0u, };
 
@@ -49,8 +51,23 @@ static cx_uint_t 	_measured_tx_current 			= 0u;
 
 static cx_float_t	_3hz_frequency_CLOCK			= 0;
 static cx_float_t	_3hz_frequency_FREQ  			= 0;
+
+static cx_uint32_t average_IMP_PLUS_value  = 0u;
+static cx_uint32_t average_IMP_MINUS_value = 0u;
+
+cx_uint_t		correction_plus_upper = 0u;
+cx_float_t		measure_plus_1 		= 0;
+cx_float_t		measure_plus_2 		= 0;
+
+static cx_uint_t	test = 0u;
+static cx_uint_t	test1 = 0u;
+static cx_uint_t	test2= 0u;
+static cx_uint_t	test3 = 0u;
+
+
 //-----------------------------------------------------------------------	
 //���з��� ��
+
 static cx_float_t 	_voltage_Level_DC580  			= 0;
 static cx_float_t 	_voltage_Level_impulse_plus  	= 0;
 static cx_float_t 	_voltage_Level_impulse_minus  	= 0;
@@ -140,6 +157,7 @@ cx_float_t get_3hz_frequency_FREQ_value(void)
 void set_flag_rising_edge_pin_freq(void) //riging edge after 2ms
 {
 	_flag_get_tx_current = CX_TRUE;
+	
 }
 
 //---------------------------------------------------------------------------
@@ -221,7 +239,8 @@ void get_AC_voltage_irq_handler(void)
 
 //---------------------------------------------------------------------------
 void get_tx_current_irq_handler(void)
-{                               
+{   
+	                           
 	//-----------------------------------------------------------------------
 	if (CX_FALSE==_flag_get_tx_current)
 	{
@@ -345,54 +364,111 @@ cx_bool_t output_voltage_control_watch(void)
 }
 
 //---------------------------------------------------------------------------
+#if 1
 void get_input_data_output_voltage(cx_bool_t clear_count)
 {
-	cx_bool_t 	i;
-	cx_uint32_t average_output_voltage_value 	= 0u;
-	
-	cx_float_t	measure_output_voltage 		= 0;
-	cx_uint_t	correction_output_voltage 	= 0u;
-	
-	static cx_uint_t	_count_output_voltage 	= 0u;
+	cx_bool_t i;
+	cx_uint32_t average_output_voltage_value = 0u;
+
+	cx_float_t measure_output_voltage = 0;
+	cx_uint_t correction_output_voltage = 0u;
+
+	static cx_uint_t _count_output_voltage = 0u;
+	cx_uint32_t raw_voltage = 0;
 	//-----------------------------------------------------------------------
-	if(CX_TRUE == clear_count) 
+	if (CX_TRUE == clear_count)
 	{
 		_count_output_voltage = 0u;
-    }
-	
-    if(_count_output_voltage >= SAMPLING_COUNT_OUTPUT_VOLTAGE)
+	}
+
+	if (_count_output_voltage >= SAMPLING_COUNT_OUTPUT_VOLTAGE)
 	{
-		for(i=0; i<SAMPLING_COUNT_OUTPUT_VOLTAGE; i++)
+		for (i = 0; i < SAMPLING_COUNT_OUTPUT_VOLTAGE; i++)
 		{
 			average_output_voltage_value += _watch_output_voltage[i];
-		}	
+		}
+
+		average_output_voltage_value = (cx_uint_t)(average_output_voltage_value / SAMPLING_COUNT_OUTPUT_VOLTAGE);
+
+		_voltage_Level_DC580 = average_output_voltage_value * 3.3 / (4096 - 1); // 전압 레벨
+		test = average_output_voltage_value;
 		
-        average_output_voltage_value = (cx_uint_t)(average_output_voltage_value/SAMPLING_COUNT_OUTPUT_VOLTAGE);
-        
-		_voltage_Level_DC580	= average_output_voltage_value*3.3/(4096-1);	//전압 레벨
-        	
-		if(average_output_voltage_value>=2200)
+		if(average_output_voltage_value<=2470)
 		{
-			correction_output_voltage = (average_output_voltage_value - 2200)/5;
+			correction_output_voltage = (average_output_voltage_value - 2000)/70;
 		}	
 		
-		measure_output_voltage = (cx_float_t)(2500 - average_output_voltage_value)/450;
-		measure_output_voltage += 3.1;	
+		measure_output_voltage = (cx_float_t)(2985 - average_output_voltage_value)/722;
+		measure_output_voltage += 3.76;	
 		
-		_measured_output_voltage = (cx_uint_t)(average_output_voltage_value/measure_output_voltage) + correction_output_voltage;	//221019 수정
+		_measured_output_voltage = (cx_uint_t)(average_output_voltage_value/measure_output_voltage) + correction_output_voltage;	//221019 ����
 		_measured_output_voltage = _measured_output_voltage*10;
 
+
 		_count_output_voltage = 0u;
-		
-		if(_measured_output_voltage<100) _measured_output_voltage = 0u;
-	}	
-	else 
+
+		if (_measured_output_voltage < 100)
+			_measured_output_voltage = 0u;
+	
+	}
+	else
 	{
 		_watch_output_voltage[_count_output_voltage] = _ADC_ValueTab[3];
 		_count_output_voltage++;
-	}	
+	}
 }
 
+#endif
+#if 0
+void get_input_data_output_voltage(cx_bool_t clear_count)
+{
+	cx_bool_t i;
+	cx_uint32_t average_output_voltage_value = 0u;
+
+	cx_float_t measure_output_voltage = 0;
+	cx_uint_t correction_output_voltage = 0u;
+
+	static cx_uint_t _count_output_voltage = 0u;
+	//-----------------------------------------------------------------------
+	if (CX_TRUE == clear_count)
+	{
+		_count_output_voltage = 0u;
+	}
+
+	if (_count_output_voltage >= OLD_SAMPLING_COUNT_OUTPUT_VOLTAGE)
+	{
+		for (i = 0; i < OLD_SAMPLING_COUNT_OUTPUT_VOLTAGE; i++)
+		{
+			average_output_voltage_value += _watch_output_voltage[i];
+		}
+
+		average_output_voltage_value = (cx_uint_t)(average_output_voltage_value / OLD_SAMPLING_COUNT_OUTPUT_VOLTAGE);
+
+		_voltage_Level_DC580 = average_output_voltage_value * 3.3 / (4096 - 1); // 전압 레벨
+
+		if (average_output_voltage_value >= 2200)
+		{
+			correction_output_voltage = (average_output_voltage_value - 2200) / 5;
+		}
+
+		measure_output_voltage = (cx_float_t)(2500 - average_output_voltage_value) / 450;
+		measure_output_voltage += 3.1;
+
+		_measured_output_voltage = (cx_uint_t)(average_output_voltage_value / measure_output_voltage) + correction_output_voltage; // 221019 수정
+		_measured_output_voltage = _measured_output_voltage * 10;
+
+		_count_output_voltage = 0u;
+
+		if (_measured_output_voltage < 100)
+			_measured_output_voltage = 0u;
+	}
+	else
+	{
+		_watch_output_voltage[_count_output_voltage] = _ADC_ValueTab[3];
+		_count_output_voltage++;
+	}
+}
+#endif
 //---------------------------------------------------------------------------
 void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_value)
 {
@@ -402,15 +478,13 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 	cx_uint32_t imp_PLUS_value			= 0u;
 	cx_uint32_t imp_MINUS_value			= 0u;
 	
-	static cx_uint32_t average_IMP_PLUS_value  = 0u;
-	static cx_uint32_t average_IMP_MINUS_value = 0u;
-	
-	cx_uint_t		correction_minus 	  = 0u;
-	cx_uint_t		correction_plus_lower = 0u;
-	cx_uint_t		correction_plus_upper = 0u;
 
-    cx_float_t		measure_plus_1 		= 0;
-	cx_float_t		measure_plus_2 		= 0;
+	cx_uint_t		correction_minus 	  = 0u;
+	//cx_uint_t		correction_plus_upper = 0u;
+	cx_uint_t		correction_plus_lower = 0u;
+	
+
+
 	
     cx_float_t		measure_minus_1 	= 0;
 	cx_float_t		measure_minus_2 	= 0;
@@ -426,11 +500,11 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 	if(active_measure == CX_TRUE)
 	{
 		//정펄스 
-		for(i=0; i<COUNT_IMPULSE_Value; i++)
+		for(i=10; i<COUNT_IMPULSE_Value-5; i++) // 1ms~9.5ms
         {
             imp_PLUS_value += _array_PA_0[i];
         }
-		temp_imp_plus_value = imp_PLUS_value/(COUNT_IMPULSE_Value-0);
+		temp_imp_plus_value = imp_PLUS_value/(COUNT_IMPULSE_Value-15);
 		
 		
 		if(_count_plus_average>=SAMPLING_COUNT_IMPULSE_VOLTAGE)
@@ -461,7 +535,7 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 				measure_plus_2 = measure_plus_1 + 2;
 			}	
 		
-			_measured_impulse_voltage_plus = (cx_uint_t)((average_IMP_PLUS_value/ measure_plus_2)*10) - correction_plus_lower + correction_plus_upper;          
+			_measured_impulse_voltage_plus = ((average_IMP_PLUS_value/ measure_plus_2)*10) - correction_plus_lower + correction_plus_upper;          
 			//---------------------------------------------------------------------------
             _count_plus_average = 0u;
             _average_imp_plus  = 0u;
@@ -475,11 +549,11 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 		
 		//---------------------------------------------------------------------------
 		//부펄스
-		for(j=135; j<COUNT_IMPULSE_Value; j++)
+		for(j=60; j<COUNT_IMPULSE_Value-10; j++)
         {
             imp_MINUS_value += _array_PA_1[j];
         }
-		temp_imp_minus_value = imp_MINUS_value/(COUNT_IMPULSE_Value-145);	//125 ~ 190 
+		temp_imp_minus_value = imp_MINUS_value/(COUNT_IMPULSE_Value-70);	//125 ~ 190 	//5ms~9.5ms
 		
 		
 		if(_count_minus_average>=SAMPLING_COUNT_IMPULSE_VOLTAGE)
@@ -506,7 +580,7 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 				measure_minus_2 = measure_minus_1 + 6.6;
 			}
 
-			_measured_impulse_voltage_minus = (cx_uint_t)((average_IMP_MINUS_value/ measure_minus_2)*10) + correction_minus;					 
+			_measured_impulse_voltage_minus = ((average_IMP_MINUS_value/ measure_minus_2)*10) + correction_minus;					 
             //---------------------------------------------------------------------------
             _count_minus_average = 0u;
             _average_imp_minus  = 0u;

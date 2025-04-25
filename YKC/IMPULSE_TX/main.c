@@ -55,7 +55,7 @@ unsigned int get_type_transmitter(void)
   * @param  None
   * @retval None
   */
-int main(void)
+  int main(void)
 {
   /*!< At this stage the microcontroller clock setting is already configured, 
        this is done through SystemInit() function which is called from startup
@@ -71,14 +71,14 @@ int main(void)
     
 	tx_type = gpio_port_initial_branch();
 	
-	switch (tx_type)
-	{
-		case TX_CONTROL:
-			peripheral_initial(); 
-			application_run_ouptut_pulse();
-			break;
+//	switch (tx_type)
+//	{
+//		case TX_CONTROL:
+//			peripheral_initial(); 
+//			application_run_ouptut_pulse();
+//			break;
 
-		case TX_SUPERVISOR:
+//		case TX_SUPERVISOR:
 			hw_driver_initialize();
 	
 			peripheral_initial(); 
@@ -90,11 +90,11 @@ int main(void)
 		
 			application_halt();
 			
-			break;
+//			break;
 
-		default:
-			break;
-	}
+//		default:
+//			break;
+//	}
 
 	return 0;
 }

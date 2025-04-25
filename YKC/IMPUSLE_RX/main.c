@@ -46,11 +46,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 
-/**
+/**D
   * @brief  Main program.
   * @param  None
-  * @retval None
+  * @retval None 
   */
+
+
 int main(void)
 {
   /*!< At this stage the microcontroller clock setting is already configured, 

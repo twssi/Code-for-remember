@@ -101,6 +101,9 @@ typedef cx_int32_t  cx_time_t;
 #define CX_FALSE 0u
 #endif
 
+#define IDLE   				0u
+#define DONE   				1u
+
 #ifndef CX_NULL_POINTER
 #define CX_NULL_POINTER 0u
 #endif

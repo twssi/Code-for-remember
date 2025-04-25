@@ -25,8 +25,9 @@
 #include "mcu_redundant.h"
 
 //#include "mcu_io_control.h"
-
+#include "stm32f10x_bit_define.h"
 #include "mcu_application.h"
+#define TEST_O 			GpioD->Bit.b8
 
 #endif
 

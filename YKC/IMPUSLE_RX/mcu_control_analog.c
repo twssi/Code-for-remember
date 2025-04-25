@@ -25,7 +25,7 @@ DMA_InitTypeDef DMA_InitStructure;
 
 #define ADC_CHANNEL						5u
 //-----------------------------------------------------------------------	
-//ÃøÁ¤°ª
+//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static cx_uint_t	_measured_impulse_voltage_plus 	= 0u;
 static cx_uint_t	_measured_impulse_voltage_minus = 0u;
 static cx_uint_t	_measured_relay_voltage_V1 		= 0u;
@@ -34,8 +34,15 @@ static cx_uint_t	_measured_rx_current 			= 0u;
 static cx_uint_t	_count_rx_current 			= 0u;
 
 static cx_float_t	_3hz_frequency_FREQ				= 0;
+
+cx_uint32_t _average_V1_value       = 0u;
+cx_uint32_t _average_V2_value       = 0u;
+
+	
+cx_uint32_t _average_IMP_PLUS_value  = 0u;
+cx_uint32_t _average_IMP_MINUS_value = 0u;
 //-----------------------------------------------------------------------	
-//Àü¾Ð·¹º§ °ª
+//ï¿½ï¿½ï¿½Ð·ï¿½ï¿½ï¿½ ï¿½ï¿½
 static cx_float_t 	_voltage_Level_V1  				= 0;
 static cx_float_t 	_voltage_Level_V2  				= 0;
 static cx_float_t 	_voltage_Level_impulse_plus  	= 0;
@@ -83,7 +90,7 @@ void DMA_initial(void)
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);
     
-    //ÀÎÅÍ·´Æ®
+    //ï¿½ï¿½ï¿½Í·ï¿½Æ®
 	/* Enable DMA1 Channel6 Transfer Complete interrupt */
 	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC, ENABLE);
     
@@ -123,7 +130,7 @@ cx_float_t get_rx_3hz_frequency_value(void)
 	static cx_uint16_t 	_array_PA_0[COUNT_IMPULSE_Value]	= {0, };
     static cx_uint16_t 	_array_PA_1[COUNT_IMPULSE_Value]	= {0, };
 //-----------------------------------------------------------------------	
-//Á¤ÆÞ½º, ºÎÆÞ½º
+//ï¿½ï¿½ï¿½Þ½ï¿½, ï¿½ï¿½ï¿½Þ½ï¿½
 void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_value)
 {
 	cx_uint_t	i,j;
@@ -132,8 +139,7 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 	cx_uint32_t imp_PLUS_value			 = 0u;
 	cx_uint32_t imp_MINUS_value			 = 0u;
 	
-	cx_uint32_t _average_IMP_PLUS_value  = 0u;
-	cx_uint32_t _average_IMP_MINUS_value = 0u;
+
 	
     cx_float_t	_measure_plus_1 		 = 0;
     cx_float_t	_measure_plus_2 		 = 0;
@@ -150,12 +156,12 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 	static cx_uint32_t 	_average_imp_minus		 = 0u;
     
 //	static cx_uint16_t 	_array_PA_0[COUNT_IMPULSE_Value]	= {0, };
- //   static cx_uint16_t 	_array_PA_1[COUNT_IMPULSE_Value]	= {0, };
+//  static cx_uint16_t 	_array_PA_1[COUNT_IMPULSE_Value]	= {0, };
 		
     //-----------------------------------------------------------------------	
 	if(active_measure == CX_TRUE)
 	{
-		//Á¤ÆÞ½º 
+		//????? 
 		for(i=10; i<COUNT_IMPULSE_Value; i++)
         {
             imp_PLUS_value += _array_PA_0[i];
@@ -202,7 +208,7 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
       
 		
 		//---------------------------------------------------------------------------
-		//ºÎÆÞ½º
+		//?????
 		for(j=120; j<COUNT_IMPULSE_Value; j++)
         {
             imp_MINUS_value += _array_PA_1[j];
@@ -246,8 +252,8 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 	}
 	else 
 	{
-		_array_PA_0[count_value-1] = _ADC_ValueTab[0];	//Á¤ÆÞ½º
-        _array_PA_1[count_value-1] = _ADC_ValueTab[1];	//ºÎÆÞ½º
+		_array_PA_0[count_value-1] = _ADC_ValueTab[0];	//?????
+        _array_PA_1[count_value-1] = _ADC_ValueTab[1];	//?????
 	}	
 	//---------------------------------------------------------------------------
 }
@@ -262,8 +268,7 @@ void get_input_data_relay_voltage(cx_bool_t active_relay_measure, cx_uint_t rela
 	cx_uint32_t relay_V1_value			= 0u;
     cx_uint32_t relay_V2_value			= 0u;
 	
-	cx_uint32_t _average_V1_value       = 0u;
-	cx_uint32_t _average_V2_value       = 0u;
+
     
     static cx_uint_t	_count_V1_average 	= 0u;
     static cx_uint_t	_count_V2_average 	= 0u;
@@ -290,18 +295,30 @@ void get_input_data_relay_voltage(cx_bool_t active_relay_measure, cx_uint_t rela
 			
 			_average_V1_value = _average_relay_V1;	
 			_voltage_Level_V1 = (_average_V1_value *3.3)/(4096-1);
-            
-            _measured_relay_voltage_V1 = (cx_uint_t)((_average_V1_value/11)*10);
+
+             _measured_relay_voltage_V1 = (cx_uint_t)((_average_V1_value/11)*10);
+
+			 
+			if(_measured_relay_voltage_V1<130)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*110/100;
+			else if(_measured_relay_voltage_V1>= 130 && _measured_relay_voltage_V1 < 160)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*106/100;
+			else if(_measured_relay_voltage_V1>= 160 && _measured_relay_voltage_V1 < 200)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*104/100;
+			else if(_measured_relay_voltage_V1>= 200 && _measured_relay_voltage_V1 < 240)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*103/100;
+			else if(_measured_relay_voltage_V1>= 240 && _measured_relay_voltage_V1 < 280)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*102/100;
+			else if(_measured_relay_voltage_V1>= 280 && _measured_relay_voltage_V1 < 320)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*101/100;
+			else if(_measured_relay_voltage_V1>= 320 && _measured_relay_voltage_V1 < 380)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*100/100;
+			else if(_measured_relay_voltage_V1>= 380 && _measured_relay_voltage_V1 < 430)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*98/100;
+			else if(_measured_relay_voltage_V1>= 430 && _measured_relay_voltage_V1 < 480)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*96/100;
+			else if(_measured_relay_voltage_V1>= 480 && _measured_relay_voltage_V1 < 530)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*95/100;
+			else if(_measured_relay_voltage_V1>= 530 && _measured_relay_voltage_V1 < 580)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*94/100;
+			else if(_measured_relay_voltage_V1>= 580 && _measured_relay_voltage_V1 < 630)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*93/100;
+			else if(_measured_relay_voltage_V1>= 630 && _measured_relay_voltage_V1 < 680)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*92/100;
+			else if(_measured_relay_voltage_V1>= 680)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*91/100;
 			
-			if(_measured_relay_voltage_V1<150)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*110/100;
-			else if(_measured_relay_voltage_V1>= 150 && _measured_relay_voltage_V1 < 250)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*106/100;
-			else if(_measured_relay_voltage_V1>= 250 && _measured_relay_voltage_V1 < 350)_measured_relay_voltage_V1 = _measured_relay_voltage_V1*100/100;
-			else if(_measured_relay_voltage_V1>=410 && _measured_relay_voltage_V1<=550) _measured_relay_voltage_V1 = _measured_relay_voltage_V1*96/100;
-			else if(_measured_relay_voltage_V1>550) _measured_relay_voltage_V1 = _measured_relay_voltage_V1*90/100;
+
             //---------------------------------------------------------------------------
-            _count_V1_average 	= 0u;
+            _count_V1_average 	= 0u;	
             _average_relay_V1  	= 0u;
-		}
+		}	
 		else 
 		{
 			_average_relay_V1 += temp_V1_value;
@@ -324,13 +341,25 @@ void get_input_data_relay_voltage(cx_bool_t active_relay_measure, cx_uint_t rela
 			
 			_average_V2_value = _average_relay_V2;	
 			_voltage_Level_V2 = (_average_V2_value *3.3)/(4096-1);
-            
-            _measured_relay_voltage_V2 = (cx_uint_t)((_average_V2_value/34)*10);
+
+			_measured_relay_voltage_V2 = (cx_uint_t)((_average_V2_value/34)*10);
+
 			if(_measured_relay_voltage_V2<150)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*108/100;
-			else if(_measured_relay_voltage_V2>= 150 && _measured_relay_voltage_V2 < 250)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*104/100;
-			else if(_measured_relay_voltage_V2>= 250 && _measured_relay_voltage_V2 < 350)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*98/100;
-			else if(_measured_relay_voltage_V2>=410 && _measured_relay_voltage_V2<=550) _measured_relay_voltage_V2 = _measured_relay_voltage_V2*93/100;
-			else if(_measured_relay_voltage_V2>550) _measured_relay_voltage_V2 = _measured_relay_voltage_V2*90/100;
+			else if(_measured_relay_voltage_V2>= 150 && _measured_relay_voltage_V2 < 200)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*107/100;
+			else if(_measured_relay_voltage_V2>= 200 && _measured_relay_voltage_V2 < 230)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*105/100;
+			else if(_measured_relay_voltage_V2>= 230 && _measured_relay_voltage_V2 < 280)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*103/100;
+			else if(_measured_relay_voltage_V2>= 280 && _measured_relay_voltage_V2 < 330)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*102/100;
+			else if(_measured_relay_voltage_V2>= 330 && _measured_relay_voltage_V2 < 380)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*100/100;
+			else if(_measured_relay_voltage_V2>= 380 && _measured_relay_voltage_V2 < 430)_measured_relay_voltage_V2 = _measured_relay_voltage_V2*98/100;
+			else if(_measured_relay_voltage_V2>= 430 && _measured_relay_voltage_V2 < 480)_measured_relay_voltage_V2 =_measured_relay_voltage_V2*96/100;
+			else if(_measured_relay_voltage_V2>= 480 && _measured_relay_voltage_V2 < 530)_measured_relay_voltage_V2 =_measured_relay_voltage_V2*95/100;
+			else if(_measured_relay_voltage_V2>= 530 && _measured_relay_voltage_V2 < 580)_measured_relay_voltage_V2 =_measured_relay_voltage_V2*94/100;
+			else if(_measured_relay_voltage_V2>= 580 && _measured_relay_voltage_V2 < 630)_measured_relay_voltage_V2 =_measured_relay_voltage_V2*92/100;
+			else if(_measured_relay_voltage_V2>= 630 && _measured_relay_voltage_V2 < 680)_measured_relay_voltage_V2 =_measured_relay_voltage_V2*91/100;
+			else if(_measured_relay_voltage_V2>= 680) _measured_relay_voltage_V2 = _measured_relay_voltage_V2*90/100;
+
+			
+ 
             //---------------------------------------------------------------------------
             _count_V2_average 	= 0u;
             _average_relay_V2  	= 0u;
@@ -346,8 +375,8 @@ void get_input_data_relay_voltage(cx_bool_t active_relay_measure, cx_uint_t rela
     }   
     else 
 	{
-		_array_PA_2[relay_count_value-1] = _ADC_ValueTab[2];	//V1 Àü¾Ð
-        _array_PA_3[relay_count_value-1] = _ADC_ValueTab[3];	//V2 Àü¾Ð
+		_array_PA_2[relay_count_value-1] = _ADC_ValueTab[2];	//V1 ï¿½ï¿½ï¿½ï¿½
+        _array_PA_3[relay_count_value-1] = _ADC_ValueTab[3];	//V2 ï¿½ï¿½ï¿½ï¿½
 	}	
 }
 
@@ -357,14 +386,14 @@ void active_flag_frequency_rising_edge(void)
     _flag_measure_current = CX_TRUE;
 }
 
-void analog_100us_tim5_irq(void) // ½ÇÁ¦ 50us ¸¶´Ù ÀÎÅÍ·´Æ®
+void analog_100us_tim5_irq(void) // ï¿½ï¿½ï¿½ï¿½ 50us ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Í·ï¿½Æ®
 {
 	put_current_value();
 }
 static cx_uint16_t 	_array_current_value[SAMPLING_COUNT_RX_CURRENT] = {0,};
 //-----------------------------------------------------------------------	
 //rx current
-void put_current_value(void) // dma ÃøÁ¤ÇÒ¶§¸¶´Ù È£Ãâ
+void put_current_value(void) // dma ï¿½ï¿½ï¿½ï¿½ï¿½Ò¶ï¿½ï¿½ï¿½ï¿½ï¿½ È£ï¿½ï¿½
 {
     //-----------------------------------------------------------------------
 	if (CX_FALSE==_flag_measure_current)
@@ -401,44 +430,16 @@ void put_current_value(void) // dma ÃøÁ¤ÇÒ¶§¸¶´Ù È£Ãâ
 			}	
 		}
 
-#if 0	
-    //-----------------------------------------------------------------------
-	if(_count_rx_current >= 20u) 
-    {
-		_count_rx_current=0;
-		_flag_measure_current = CX_FALSE; //clear flag 
-       
-		//----------------------------------------------------------------------- 
-		for(j= 0; j<_count_measure_current; j++)  
-		{
-			if(max <= _array_current_value[j]) 
-			{
-				max = _array_current_value[j];
-			}	
-		}
-#endif	
 		//-----------------------------------------------------------------------
 		if(_count_average_current >= SAMPLING_COUNT_AVERAGE_CURRENT) 
 		{
 			temp_current_value  = _average_max_current_value/SAMPLING_COUNT_AVERAGE_CURRENT;
 			
-			_voltage_Level_rx_current 	= (cx_float_t)((temp_current_value*3.3)/(4096-1));	//Àü·ù Àü¾Ð·¹º§
+			_voltage_Level_rx_current 	= (cx_float_t)((temp_current_value*3.3)/(4096-1));	//ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ð·ï¿½ï¿½ï¿½
 			
 			_count_average_current		= 0u;
 			_average_max_current_value 	= 0u;
-#if 0			
-			//-----------------------------------------------------------------------
-            measure_sqrt_value = sqrt((cx_float_t)temp_current_value/1000);
-			weight_measure_current = measure_sqrt_value* 6.9;
-				
-            _measured_rx_current = (cx_uint_t)((temp_current_value/weight_measure_current)*10);  
-			if(_measured_rx_current>=2300) 
-			{
-				correction_current = _measured_rx_current - 2300;
-				if(correction_current>100) correction_current = 100;
-			}	
-			_measured_rx_current = (_measured_rx_current + correction_current)*74/100;
-#endif		
+
 			if(temp_current_value>2500)	_measured_rx_current=temp_current_value*70/100;	
 			else if(1500<temp_current_value && temp_current_value<=2500) _measured_rx_current=temp_current_value*74/100;
 			else if(500<temp_current_value && temp_current_value<=1500) _measured_rx_current=temp_current_value*76/100;
@@ -478,7 +479,7 @@ void control_watch_pulse_frequency(pulse_frequency_t* data, cx_float_t pulse_fre
 {
 	cx_bool_t fail;
 	
-	fail = CX_FALSE;
+	fail = CX_FALSE;	
 	//-----------------------------------------------------------------------
 	if ( ((3*0.97)>=pulse_frequency) || ((3*1.03)<=pulse_frequency) )
 	{
@@ -487,7 +488,7 @@ void control_watch_pulse_frequency(pulse_frequency_t* data, cx_float_t pulse_fre
 	
     if (CX_TRUE==fail)
 	{
-        if (data->sampling_pulse_frequency.fail_count<=CHATTERING_COUNT_PULSE_FREQ) //5¹ø
+        if (data->sampling_pulse_frequency.fail_count<=CHATTERING_COUNT_PULSE_FREQ) //5ï¿½ï¿½ //íŽ„ìŠ¤ failì‹œ ê¸°ë‹¤ë¦¬ëŠ” ì‹œê°„ ê¸°ì¡´ 5ì´ˆ
 		{
 			data->sampling_pulse_frequency.fail_count++;
 		}
@@ -504,22 +505,7 @@ void control_watch_pulse_frequency(pulse_frequency_t* data, cx_float_t pulse_fre
 			
 		data->sampling_pulse_frequency.health = CX_TRUE;
     }
-#if 0    
-	//1¹ø fail -> kill?
-	if (CX_TRUE==fail)
-	{
-		data->health          					  = CX_FALSE;	
-		
-		data->sampling_pulse_frequency.fail_value = CX_TRUE;
-	}
-	else 
-	{
-		data->health 							  = CX_TRUE;
-		
-		data->sampling_pulse_frequency.fail_count = 0u;
-		data->sampling_pulse_frequency.fail_value = CX_FALSE;
-	}
-#endif	
+
 }
 
 //---------------------------------------------------------------------------

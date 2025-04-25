@@ -23,10 +23,24 @@
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
 static __IO uint32_t TimingDelay;
+#define F_CLK 2000000  
 
+volatile uint16_t ic_value1 = 0;
+volatile uint16_t ic_value2 = 0;
+volatile uint16_t capture_diff = 0;
+volatile uint8_t  is_captured = 0;
+
+volatile uint32_t measured_freq_hz = 0;  
+#define DEBUG_BUF_SIZE 100
+static cx_uint8_t debug_rx_buf[DEBUG_BUF_SIZE];  // ë””ë²„ê¹…ìš© ìˆ˜ì‹  ë²„í¼
+static cx_uint32_t debug_rx_len = 0;             // ì‹¤ì œ ì €ì¥ëœ ê¸¸ì´
+
+static cx_bool_t Track_relay;
+static cx_uint_t _timer_count_0010_msec  	= 0u;
 static cx_uint_t _timer_count_0020_msec  	= 0u;
 static cx_uint_t _timer_count_0100_msec  	= 0u;
 static cx_uint_t _timer_count_0200_msec  	= 0u;
+static cx_uint_t _timer_count_0300_msec  	= 0u;
 static cx_uint_t _timer_count_0500_msec  	= 0u;
 static cx_uint_t _timer_count_1000_msec  	= 0u;
 static cx_uint_t _timer_count_5000_msec  	= 0u;
@@ -48,10 +62,12 @@ static cx_bool_t _timer_run 			 	= CX_FALSE;
 static cx_bool_t _watchdog_run          	= CX_FALSE; 
 static cx_bool_t _watchdog_fail          	= CX_FALSE;
 static cx_bool_t _inconsistency_fail        = CX_FALSE;
+
 static cx_bool_t _false_relay_drop 			= CX_FALSE;
 static cx_bool_t _false_relay_excitation 	= CX_FALSE;
-static cx_bool_t _application_halt          = CX_FALSE;
 
+static cx_bool_t _application_halt          = CX_FALSE;
+static cx_bool_t _impulse_voltage_measure_run   = CX_FALSE; //timer2 rising edge(freq)/ for Impulse voltage
 static cx_bool_t _flag_control_watch		= CX_FALSE;
 static cx_bool_t _flag_update_equipment 	= CX_FALSE;
 static cx_bool_t _flag_update_ostream   	= CX_FALSE;
@@ -60,7 +76,14 @@ static cx_bool_t _flag_transmit         	= CX_FALSE;
 static cx_bool_t _flag_get_impulse_voltage  = CX_FALSE;
 static cx_bool_t _flag_get_relay_voltage 	= CX_FALSE;
 
+cx_uint_t _relay_off_duration = 0;
+cx_bool_t _prev_relay_input_value;
+cx_bool_t _relay_flicker_detected;
+
+static cx_uint_t transmit_relay_input_value 		= 0u;
+static cx_bool_t flag_debug;
 //static cx_bool_t _flag_check_watchdog_input_data = CX_FALSE;
+static cx_bool_t	_flag_trans_state      	= CX_FALSE;
 static cx_bool_t _flag_control_input    	= CX_FALSE;
 static cx_uint_t _relay_input_value 		= 0u;
 static cx_uint_t _trans_tab_input_value 	= 0u;
@@ -74,8 +97,13 @@ static cx_uint_t _flag_active_display		= CX_TRUE;
 static cx_bool_t _flag_rising_edge_freq   		= CX_FALSE; 	//timer3 rising edge(freq)/ for impulse voltage value
 static cx_bool_t _flag_rising_edge_freq_relay 	= CX_FALSE;     //timer3 rising edge(freq)/ for relay voltage value
 
+static cx_uint_t _flag_TR1_parsedone		= CX_FALSE;
+static cx_uint_t _flag_TR2_parsedone		= CX_FALSE;
+
 static cx_uint_t _pre_hotstandby 			= 0u;
 static cx_uint_t _check_rising_edge_tim3	= 0u;
+
+cx_uint_t rx_frequency;
 //===========================================================================
 // reg -> bfifo -> bsb -> stream
 //debug
@@ -83,28 +111,42 @@ static cx_byte_t _com1_fifo_tx_buffer      [4096];
 static cx_byte_t _com1_fifo_rx_buffer      [  64];
 
 
-static cx_byte_t Tranmitt_active_data_buf  [  18];
+//static cx_byte_t Tranmitt_active_data_buf  [  18];
 
-static cx_uint_t _state_trans1		= 0;
-static cx_uint_t _state_trans2		= 0;
+static cx_uint_t TR1_active		= 0;
+static cx_uint_t TR2_active		= 0;
 
+static cx_uint_t TR1_state		= 0;
+static cx_uint_t TR2_state		= 0;
+static cx_uint8_t _transmit_state_data;
+static cx_uint8_t transmit_data1;
+static cx_uint8_t transmit_data2;
+static cx_uint8_t transmit_data = CX_TRUE;
 
+static cx_uint_t _freq_count			  			= 0u;
+static cx_bool_t _freq_state			  			= IDLE;
+static cx_bool_t _freq_fail_state			  		= CX_FALSE;
+static cx_uint_t _freq_fail_count		  			= 0u;
+static cx_bool_t _freq_health_fail		  			= CX_FALSE;
+static cx_uint_t _freq_data				  			= 0u;
 
+static cx_uint_t cur_debounce_count = 0u;
+static cx_uint_t pre_debounce_count = 0u;
 
 //To Tx 2
 static cx_byte_t _com2_fifo_tx_buffer      [NB_PACKET_TX_MAX_SIZE];
 static cx_byte_t _com2_fifo_rx_buffer      [NB_PACKET_RX_MAX_SIZE];
-static cx_byte_t _com2_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer µÎ¹è»çÀÌÁîº¸´Ù Ä¿¾ß ÇÔ
+static cx_byte_t _com2_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer ï¿½Î¹ï¿½ï¿½ï¿½ï¿½ï¿½îº¸ï¿½ï¿½ Ä¿ï¿½ï¿½ ï¿½ï¿½
 
 //To D.G
 static cx_byte_t _com3_fifo_tx_buffer      [NB_PACKET_TX_MAX_SIZE];
 static cx_byte_t _com3_fifo_rx_buffer      [NB_PACKET_RX_MAX_SIZE];
-static cx_byte_t _com3_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer µÎ¹è»çÀÌÁîº¸´Ù Ä¿¾ß ÇÔ
+static cx_byte_t _com3_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer ï¿½Î¹ï¿½ï¿½ï¿½ï¿½ï¿½îº¸ï¿½ï¿½ Ä¿ï¿½ï¿½ ï¿½ï¿½
 
 //To TX 1
 static cx_byte_t _com4_fifo_tx_buffer      [NB_PACKET_TX_MAX_SIZE];
 static cx_byte_t _com4_fifo_rx_buffer      [NB_PACKET_RX_MAX_SIZE];
-static cx_byte_t _com4_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer µÎ¹è»çÀÌÁîº¸´Ù Ä¿¾ß ÇÔ
+static cx_byte_t _com4_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_rx_buffer ï¿½Î¹ï¿½ï¿½ï¿½ï¿½ï¿½îº¸ï¿½ï¿½ Ä¿ï¿½ï¿½ ï¿½ï¿½
 
 // static RINGBUF               Trans1_rxringbuf;
 // static cx_uint8_t        Trans1_rxbuf[128];
@@ -116,6 +158,11 @@ static cx_byte_t _com4_stream_rx_bsb_buffer[NB_PACKET_RX_MAX_SIZE*2u]; // fifo_r
 
 static cx_uint8_t         Trans1_rxbuf_debug[25];
 static cx_uint8_t         Trans2_rxbuf_debug[25];
+static cx_uint8_t		  Trans1_rx_data[18];
+static cx_uint8_t		  Trans2_rx_data[18];
+
+
+
 static cx_uint8_t 			_DG_tx_buffer[46];
 static cx_bool_t _flag_Trans1_rx_done		= CX_FALSE;
 static cx_bool_t _flag_Trans2_rx_done	 	= CX_FALSE;
@@ -132,7 +179,8 @@ static cx_byte_t _nb_rx_buffer [NB_PACKET_RX_MAX_SIZE];
 
 static cx_byte_t _message [NB_O_MESSAGE_MAX_SIZE];
 
-//--------------fnd Ç¥½Ã º¯¼ö ¼±¾ğ-----------------------------------------
+static cx_uint8_t         Trans2_debugbuf[25];
+//--------------fnd Ç¥ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½-----------------------------------------
 cx_bool_t _fnd0[5];
 cx_bool_t _fnd1[5];
 
@@ -159,6 +207,8 @@ cx_bool_t _fnd1[5];
 #define FND_CHAR_H     0x76
 #define FND_CHAR_A     0x77
 #define FND_CHAR_V     0x3E
+
+void control_impulse_voltage_input (void);
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -243,15 +293,22 @@ static void timer_run_irq_handler(void)
 	
 		_flag_make_display_data = CX_TRUE;
 	}
-	
+	_timer_count_0300_msec++;
+	if(_timer_count_0300_msec>300u*2)
+	{
+		_timer_count_0300_msec = 0u;
+		
+	}
 	//-----------------------------------------------------------------------
 	_timer_count_0200_msec++;
 	if (_timer_count_0200_msec>200u*2)
 	{
+		_TX1_rx_timeout_count++;
+		_TX2_rx_timeout_count++;
 		_timer_count_0200_msec = 0u;
-
-		//-------------------------------------------------------------------		
-		_flag_control_input = CX_TRUE;
+		//---------------------------------------------------------------------
+		_flag_transmit = CX_TRUE;	
+		//_flag_control_input = CX_TRUE;
 	}
 
 	//-----------------------------------------------------------------------
@@ -259,28 +316,33 @@ static void timer_run_irq_handler(void)
 	if (_timer_count_0100_msec>100u*2)
 	{
 		_timer_count_0100_msec = 0u;
-		
+		_flag_control_watch = CX_TRUE;
 		//-------------------------------------------------------------------
 		peer_timer_irq_handler   ();	//peer
 		istream_timer_irq_handler();	//stream
 		
-		_flag_control_watch = CX_TRUE;
+		
 	}
 	
 	//-----------------------------------------------------------------------
 	_timer_count_0020_msec++;
-	if (_timer_count_0020_msec>200u*2)
-	{
-		_timer_count_0020_msec = 0u;
-		_TX1_rx_timeout_count++;
-		_TX2_rx_timeout_count++;
 
-		//---------------------------------------------------------------------
-        _flag_transmit = CX_TRUE;
-       
+	if (_timer_count_0020_msec>20u*2)
+	{
+	
+		_timer_count_0020_msec = 0u;
+		
 	}
-    
+    _timer_count_0010_msec++;
+
+	if (_timer_count_0010_msec>10u*2)
+	{
+		_timer_count_0010_msec = 0u;
+		_flag_control_input = CX_TRUE;
+		_flag_trans_state = CX_TRUE;
+	}
 	//-----------------------------------------------------------------------		
+	cur_debounce_count ++;
 	if(CX_TRUE == _flag_active_mode_switch)
 	{
 		_mode_sw_timer_count_0100_msec++;
@@ -303,7 +365,9 @@ static void timer_run_irq_handler(void)
 
 void timer_50usec_irq_handler (void)
 {
-	_flag_get_impulse_voltage = CX_TRUE;	//
+	//_flag_get_impulse_voltage = CX_TRUE;	//
+	control_impulse_voltage_input();
+	get_impulse_voltage_irq_handler();
 }
 
 
@@ -388,64 +452,84 @@ void rising_edge_flag_TIM3(void)
 	_check_rising_edge_tim3 = 0u;
 }
 
+
 //===========================================================================
+#if 1
 void calculate_inputcapture_TIM3 (void)
 {
-	static cx_uint16_t _capture_number_TIM3	= 0u;
-	static cx_uint16_t _readvalue1_TIM3		= 0u;
-    static cx_uint16_t _readvalue2_TIM3		= 0u;
-	
-	cx_uint16_t capture_value			= 0u;
-	cx_float32_t pulse_frequecy_TIM3 	= 0u;
-		
-	if(_capture_number_TIM3 == 0)
+	static cx_uint_t gu32_T1H	= 0;
+	static cx_uint_t gu32_T2H	= 0;
+	static cx_uint_t gu32_Ticks	= 0;
+	static cx_uint_t gu32_Freq	= 0;
+
+	if(_freq_state == IDLE)
 	{
-		/* Get the Input Capture value */
-		_readvalue1_TIM3 = TIM_GetCapture2(TIM3);
-		
-		_capture_number_TIM3 = 1;
+			_freq_count 	= 0;
+			_freq_state 	= DONE;
 	}
-	else if(_capture_number_TIM3 == 1)
+	else if(_freq_state == DONE)
 	{
-		/* Get the Input Capture value */
-		_readvalue2_TIM3 = TIM_GetCapture2(TIM3); 
-			 
-		/* Capture computation */
-		if (_readvalue2_TIM3 > _readvalue1_TIM3)
+		if(_freq_count >= 100)
 		{
-			capture_value = _readvalue2_TIM3 - _readvalue1_TIM3; 
+			gu32_T1H 		= _freq_count;
+			gu32_Freq 		= (uint32_t)(F_CLK/gu32_T1H);
+			_freq_state 	= IDLE;
+			_freq_count		= 0;
+
+			_freq_data		= gu32_Freq;
+			
+			if(_freq_data==301 || _freq_data == 299) _freq_data = 300; // 3Hz
+
 		}
-		else
-		{
-			capture_value = (0xFFFF - _readvalue1_TIM3) + _readvalue2_TIM3;	//0xFFFF : Timer3ÀÇ period
-		}
-		
-		/* Frequency computation */ 
-		pulse_frequecy_TIM3 = ((cx_float32_t)(72000000/2400) / capture_value);	//2400 : Timer3ÀÇ TIM_Prescaler
-		
-		put_pulse_frequency(pulse_frequecy_TIM3);
-	
-		_capture_number_TIM3 = 0;	
 	}
 }
-
+#endif
 //adc dma 
-void measure_current_irq_handler (void)	// dma ÃøÁ¤ÇÒ¶§¸¶´Ù È£Ãâ
+void measure_current_irq_handler (void)	// dma ï¿½ï¿½ï¿½ï¿½ï¿½Ò¶ï¿½ï¿½ï¿½ï¿½ï¿½ È£ï¿½ï¿½
 {	
 	//dma interrupt 
 	//put_current_value();
 
 	//-----------------------------------------------------------------------
 }
+void get_impulse_voltage_irq_handler (void)
+{
+//	_flag_get_impulse_voltage = CX_TRUE;	//50us
+	_freq_count++;
+	if(_freq_count > 30000)
+	{
+		_freq_state 	= IDLE;
+		_freq_fail_state = CX_TRUE;
+		if(_freq_count >= 30000)
+		{
+			_freq_data = 0;
+			_freq_count 	= 30000;
+		}
+	}
+	if(_freq_fail_state == CX_TRUE)
+	{
+		if(_freq_fail_count++ >= 40000)
+		{
+			_freq_health_fail = CX_TRUE;
+			_freq_fail_count = 40000;
+		}
+	}
+	else
+	{
+		_freq_fail_count	= 0;
+		_freq_health_fail 	= CX_FALSE;
+	}
+	//control_impulse_voltage_input();
+}
 
 //-----------------------------------------------------------------------
 void control_impulse_voltage_input(void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE ==_flag_get_impulse_voltage)	//50us, 0.05ms
-	{
-		return;
-	}
+	//if (CX_FALSE ==_flag_get_impulse_voltage)	//50us, 0.05ms
+	//{
+	//	return;
+	//}
 	//-----------------------------------------------------------------------
 	if (CX_FALSE ==_flag_rising_edge_freq)		//rising edge
 	{
@@ -458,12 +542,12 @@ void control_impulse_voltage_input(void)
 	
 	if(_count_measure_impulse_voltage >= 1)    //100us
     {
-        GPIO_O_IMPULSE_CLR1(0); 	//Á¤ÆŞ½º Clear
+        GPIO_O_IMPULSE_CLR1(0); 	//ï¿½ï¿½ï¿½Ş½ï¿½ Clear
     } 
 	
 	if(_count_measure_impulse_voltage >= 40)   //rx: 40(2ms)     tx: 50(2.5ms)
     {
-        GPIO_O_IMPULSE_CLR2(0);     //ºÎÆŞ½º Clear
+        GPIO_O_IMPULSE_CLR2(0);     //ï¿½ï¿½ï¿½Ş½ï¿½ Clear
     } 
 	
     
@@ -496,6 +580,7 @@ void control_impulse_voltage_input(void)
 	//-----------------------------------------------------------------------
 	
 }
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////  PWS modify//////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -504,7 +589,7 @@ void OnUart3_Recv (cx_uint8_t ch)
 {
 	static cx_uint32_t i=0;
 	static cx_uint8_t buf[25];
-//	ringbuf_write (&Trans1_rxringbuf, &ch, 1);
+
 	
 	buf[i] = ch;
 	if(buf[i++] == 0x0A)
@@ -521,10 +606,10 @@ void OnUart3_Recv (cx_uint8_t ch)
 void OnUart4_Recv (cx_uint8_t ch)
 {
 	static cx_uint32_t i=0;
-	static cx_uint8_t buf[50];
-//	ringbuf_write (&Trans2_rxringbuf, &ch, 1);
-	
+	static cx_uint8_t buf[25];
+
 	buf[i] = ch;
+	
 	if(buf[i++] == 0x0A)
 	{
 		memcpy(Trans2_rxbuf_debug,buf,i);
@@ -533,7 +618,9 @@ void OnUart4_Recv (cx_uint8_t ch)
 		_count_Trans2_rx=i;
 		i=0;
 	}
+		
 	if(i>50) i=0;
+	
 }
 
 uint8_t fcs(uint8_t* data, cx_uint16_t len)
@@ -601,6 +688,7 @@ void dbg_put_char(uint8_t dat) {      // tx flag check(polling)
 
   USART3->DR = (dat & (u16)0x01FF);
   while(USART_GetFlagStatus(USART3, USART_FLAG_TXE) == RESET);     // tx interrupt
+  
 }
 
 void put_str(cx_byte_t *str) {
@@ -662,26 +750,20 @@ cleanup:
 
 void Trans1_Input_Parse(cx_uint8_t * bufptr, cx_uint16_t bufsize)
 {
-	uint32_t volage_plus;
+	
 	_TX1_rx_timeout_count=0;
-	volage_plus = ((bufptr[bufsize-17]-'0') *100) + ((bufptr[bufsize-16]-'0') * 10) + (bufptr[bufsize-15]-'0');
-	if(volage_plus>=100)
-	{
-		memcpy(Tranmitt_active_data_buf,&bufptr[bufsize-23],18);
-		memset(Trans1_rxbuf_debug,0x00, 25);
-	}
+	memcpy(Trans1_rx_data,&bufptr[bufsize-23],18);
+	
+
 }
 
 void Trans2_Input_Parse(cx_uint8_t * bufptr, cx_uint16_t bufsize)
 {
-	uint32_t volage_plus;
+	
 	_TX2_rx_timeout_count=0;
-	volage_plus = ((bufptr[bufsize-17]-'0') *100) + ((bufptr[bufsize-16]-'0') * 10) + (bufptr[bufsize-15]-'0');
-	if(volage_plus>=100)
-	{
-		memcpy(Tranmitt_active_data_buf,&bufptr[bufsize-23],18);
-		memset(Trans2_rxbuf_debug,0x00, 25);
-	}
+	memcpy(Trans2_rx_data,&bufptr[bufsize-23],18);
+	
+
 }
 
 void Trans1_Input (void)
@@ -697,6 +779,7 @@ void Trans1_Input (void)
 	if (Packet_Verify(Trans1_rxbuf_debug, size, max, &offset))
 	{
 		Trans1_Input_Parse(Trans1_rxbuf_debug, offset);
+	
 	}
 	_flag_Trans1_rx_done = CX_FALSE;
 }
@@ -715,6 +798,7 @@ void Trans2_Input (void)
 	if (Packet_Verify(Trans2_rxbuf_debug, size, max, &offset))
 	{
 		Trans2_Input_Parse(Trans2_rxbuf_debug, offset);
+		
 	}
 	_flag_Trans2_rx_done = CX_FALSE;
 }
@@ -731,10 +815,12 @@ void control_relay_voltage_input(void)
 		return;
 	}
 	//-----------------------------------------------------------------------
+    
 	if (CX_FALSE ==_flag_rising_edge_freq_relay)	//rising edge
 	{
 		return;
 	}
+    
 	//-----------------------------------------------------------------------
 	static cx_uint_t _count_measure_relay_voltage  = 0u;
 	static cx_bool_t _active_measure_relay_voltage = CX_FALSE;
@@ -806,340 +892,142 @@ cx_uint_t get_active_transmitter (void)
 }
 
 //-----------------------------------------------------------------------
-static void update_ostream (void)
-{
-	//-----------------------------------------------------------------------
-	if (CX_FALSE==_flag_update_ostream)
-	{
-		return;
-	}
 
-	//-----------------------------------------------------------------------
-	cx_byte_t message [NB_O_MESSAGE_MAX_SIZE];
-	cx_uint_t message_size;
-	cx_byte_t* payload;	
-	//-----------------------------------------------------------------------
-	cx_uint8_t	id;
-	cx_uint32_t timestamp;
-	//-----------------------------------------------------------------------
-	static cx_byte_t _hotstandby = 0u;
-	static cx_uint_t _count_simultaneous_active = 0u;
-	
-	cx_uint_t config_id;
-	cx_uint_t input;
-	cx_uint_t trans_tab;
-	
-	
-	
-	cx_uint_t  impulse_voltage_plus;
-	cx_uint_t  impulse_voltage_minus;
-	cx_uint_t  relay_voltage_v1;
-	cx_uint_t  relay_voltage_v2;
-	cx_uint_t  rx_current;
-	cx_uint_t  rx_frequency;
-	
-	
-	cx_uint_t  manual_switch_input = CX_FALSE;
-	cx_uint_t  simultaneous_activation = CX_FALSE;
-	cx_uint_t  tx_fail_data = CX_FALSE;
-	
-	
-	//-----------------------------------------------------------------------
-	message_size = sizeof(message);
-		
-	memset (message, 0x00, message_size);
-	
-	payload = &message[6];  //
-	//-----------------------------------------------------------------------			
-
-	//-----------------------------------------------------------------------	
-	if(_pre_hotstandby == _hotstandby);
-	else 
-	{
-		_pre_hotstandby = _hotstandby;
-		debug_printf("# ACTIVE Transmaitter = %d \n", _pre_hotstandby );
-	}	
-	
-	if(_count_simultaneous_active >= 3) simultaneous_activation = CX_TRUE; 
-	//-----------------------------------------------------------------------	
-	//_hotstandby ÀÖ´Â °æ¿ì
-	if(_hotstandby)
-	{	
-		memcpy(&payload[12], &_equipment.transmitter[0][_hotstandby-1].data, 14);	//
-	}	
-	
-	//°¢ ¼Û½ÅÀÇ FAIL Byte, ÀıÃ¼½ºÀ§Ä¡ ÀÔ·ÂÁ¤º¸ ÃëÇÕ
-	manual_switch_input = ((_equipment.transmitter[0][0].data[1])&0x40) | ((_equipment.transmitter[0][1].data[1])&0x80);
-	
-	//¼Û½Å¸ğµâ ¿¬°á ¿©ºÎ¸¦ È®ÀÎÇÏ¿© °íÀåÁ¤º¸ ºñÆ®¸¦ Ãß°¡	
-	if(CX_TRUE == _equipment.transmitter[0][0].connection) 
-	{
-		tx_fail_data |= ((_equipment.transmitter[0][0].data[1])&0x03);
-	}	
-	else tx_fail_data |= 0x03;
-	
-	if(CX_TRUE == _equipment.transmitter[0][1].connection) 
-	{
-		tx_fail_data |= ((_equipment.transmitter[0][1].data[1])&0x0C);
-	}	
-	else tx_fail_data |= 0x0C; 
-		
-	payload[13] = (manual_switch_input|tx_fail_data);	//
-	//-----------------------------------------------------------------------		
-	config_id = _config.gpio_i_id;
-
-	input =  
-//		( GPIO_I_SwitchOver_INPUT_1()  ? 0x01u : 0x00u ) |	//ÀıÃ¼ ½ºÀ§Ä¡ 1 ÀÔ·Â Á¤º¸
-//		( GPIO_I_SwitchOver_INPUT_2()  ? 0x02u : 0x00u ) |	//ÀıÃ¼ ½ºÀ§Ä¡ 2 ÀÔ·Â Á¤º¸
-		( _application_halt 		   ? 0x00u : 0x01u ) |	//¼ö½Å¸ğµâ run/fail
-		( _false_relay_drop 		   ? 0x00u : 0x02u ) |	//ºÎÁ¤³«ÇÏ Á¤»ó/°íÀå
-		( _false_relay_excitation 	   ? 0x00u : 0x04u ) |	//ºÎÁ¤¿©ÀÚ Á¤»ó/°íÀå
-		( simultaneous_activation 	   ? 0x08u : 0x00u ) |	//¼Û½Å¸ğµâ µ¿½Ã ÁÖ°è
-		//-----------------------------------------------------------------------	
-		( _relay_input_value 		   ? 0x80u : 0x00u ) ;	//±Ëµµ°èÀü±â ÀÔ·Â Á¤º¸
-		
-	trans_tab = _trans_tab_input_value;	//
-	
-	input = (input | ((trans_tab&0x07)<<4));	//
-	
-	
-	impulse_voltage_plus = get_imnpulse_voltage_plus_value();
-	impulse_voltage_minus = get_imnpulse_voltage_minus_value();
-	
-	relay_voltage_v1 = get_relay_voltage_v1_value()/10;
-	relay_voltage_v2 = get_relay_voltage_v2_value()/10;
-	
-	rx_current = get_rx_current_value()/10;
-	rx_frequency = (cx_uint_t)(get_rx_3hz_frequency_value()*100);
-	
-	//-----------------------------------------------------------------------
-	id = 0u;
-	if (EQUIPMENT_TYPE_RECEIVER  ==_config.type) 
-	{
-		id = 2u;
-	}
-	timestamp = _operating_time_second;
-		
-	//-----------------------------------------------------------------------
-    memcpy(&message[0], 0x00     , 1);
-    memcpy(&message[1], &id       , 1);
-	memcpy(&message[2], &timestamp, 4);
-
-	//-----------------------------------------------------------------------
-	payload[ 0] = config_id ;
-	payload[ 1] = input     ;
-	//Á¤ÆŞ½º
-	payload[ 2] = ((impulse_voltage_plus &0xFF00)>>8);
-	payload[ 3] = ( impulse_voltage_plus &0x00FF);
-	//ºÎÆŞ½º
-	payload[ 4] = ((impulse_voltage_minus &0xFF00)>>8);
-	payload[ 5] = ( impulse_voltage_minus &0x00FF);
-	//V1
-	payload[ 6] = relay_voltage_v1;
-	//V2
-	payload[ 7] = relay_voltage_v2;
-	//Æ®·£½º ÅÇ
-//	payload[ 7] = trans_tab;	//ÀÌµ¿
-	//ÁÖÆÄ¼ö
-	payload[ 8] = ((rx_frequency &0xFF00)>>8);
-	payload[ 9] = ( rx_frequency &0x00FF);
-	//Àü·ù 
-	payload[10] = ((rx_current &0xFF00)>>8);
-	payload[11] = ( rx_current &0x00FF);
-
-	//-----------------------------------------------------------------------
-	memcpy(_message, message, sizeof(_message));
-
-	//-----------------------------------------------------------------------
-	message_queue_push(&_nb_o_message_queue, message, message_size);
-
-	//-----------------------------------------------------------------------
-	
-	
-	_flag_update_ostream = CX_FALSE;
-}
 
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
-static void transmit (void)
+void check_state_Transmitter(void)
 {
-	//-----------------------------------------------------------------------
-	if (_timer_count_transmit<380) //(_flag_transmit==CX_FALSE) ÆŞ½º Ãâ·Â ÈÄ 190ms ¸¶´Ù Åë½Å.. ½Ã¸®¾ó Åë½Å¿¡ ÀÇÇÑ ADC ÀÔ·Â ¿µÇâ ¹æÁö
+	if(CX_FALSE == _flag_trans_state)
 	{
 		return;
 	}
+	
+	TR1_active = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_5);
+	TR2_active = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_7);
+	
+	TR1_state = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_6);
+	TR2_state = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8);
 
-	//-----------------------------------------------------------------------
+	if(TR1_state == LOW && TR2_state == LOW && TR1_active == HIGH && TR2_active == LOW) _transmit_state_data = 0x30;
+	else if(TR1_state == LOW && TR2_state == LOW && TR1_active == LOW && TR2_active == HIGH) _transmit_state_data = 0x31;
+	else if(TR1_state == LOW && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x32;
+	else if(TR1_state == HIGH && TR2_state == LOW && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x33;
+	else if(TR1_state == HIGH && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x34;
+	
+	if(_TX1_rx_timeout_count > 5)
+	{
+		memset(Trans1_rx_data,0x00,18);
+		_TX1_rx_timeout_count = 5;
+	}
+
+
+	if(_TX2_rx_timeout_count > 5)
+	{
+		memset(Trans2_rx_data,0x00,18);
+		_TX1_rx_timeout_count = 5;
+	}
+
+
+	_flag_trans_state =CX_FALSE;
+}
+
+static void transmit (void)
+{
+	if (_flag_transmit == CX_FALSE)
+		return;
+
 	cx_uint_t config_id;
-	cx_uint_t  impulse_voltage_plus;
-	cx_uint_t  impulse_voltage_minus;
-	cx_uint_t  relay_voltage_v1;
-	cx_uint_t  relay_voltage_v2;
-	cx_uint_t  rx_current;
-	cx_uint_t  rx_frequency;
+	cx_uint_t impulse_voltage_plus;
+	cx_uint_t impulse_voltage_minus;
+	cx_uint_t relay_voltage_v1;
+	cx_uint_t relay_voltage_v2;
+	cx_uint_t rx_current;
+	
 	
 	cx_uint16_t temp_ReadID1 = 0u;
 	cx_uint16_t temp_ReadID2 = 0u;
-	
 	cx_uint16_t rotary_sw_1 = 0u;
 	cx_uint16_t rotary_sw_2 = 0u;
-	
-	cx_uint_t  i; // pws
-	cx_uint8_t fcs_value; // pws
-	cx_uint_t  size;  //pws
-	cx_uint8_t relay_data;
-	static cx_uint8_t _transmit_state_data;
-	static cx_uint_t _count_relay_vol_off=0;
-	
-	temp_ReadID1 = GPIO_ReadInputData(GPIOE);
-	temp_ReadID1 = ~(temp_ReadID1) & 0x3C;
-	rotary_sw_1 = (temp_ReadID1 >> 2)&0x0F;  //SW 1 read   
 
-	temp_ReadID2 = GPIO_ReadInputData(GPIOC);
-	temp_ReadID2 = ~(temp_ReadID2) & 0x000F;		
-	rotary_sw_2 = (temp_ReadID2 >> 0)&0x0F;	//SW 2 read
-	rotary_sw_1 = reverse4(rotary_sw_1);	//reverse
-	rotary_sw_2 = reverse4(rotary_sw_2);	//reverse
+	cx_uint_t i;
+	cx_uint8_t fcs_value;
+	cx_uint_t size;
+	cx_uint8_t relay_data;
 	
-	config_id = _config.gpio_i_id;
-	
-	impulse_voltage_plus = get_imnpulse_voltage_plus_value();
-	impulse_voltage_minus = get_imnpulse_voltage_minus_value();
-	
-	relay_voltage_v1 = get_relay_voltage_v1_value()/10;
-	relay_voltage_v2 = get_relay_voltage_v2_value()/10;
-	
-	rx_current = get_rx_current_value()/10;
-	rx_frequency = (cx_uint_t)(get_rx_3hz_frequency_value()*100);
-	
-	size=46;
-	memset(&_DG_tx_buffer[4],0x30,18);
-	_DG_tx_buffer[0] = 0x02;
-	// for(i=0;i<2;i++)
-	// {
-		// _DG_tx_buffer[1+i]	=(config_id/POW(10,1-i))%10+'0';
-	// }
-	
-	_DG_tx_buffer[1]	=fcs_conv(rotary_sw_1);
-	_DG_tx_buffer[2]	=fcs_conv(rotary_sw_2);
-	
-	_state_trans1 = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_5);
-	_state_trans2 = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_7);
-	
-	if(!_state_trans1)
-	{
-		_transmit_state_data = 0x31u;
-	}
-	else
-	{
-		if(_TX1_rx_timeout_count > 3)
-		{
-			if(_TX2_rx_timeout_count > 3) _transmit_state_data = 0x34;
-			else _transmit_state_data = 0x33;
-		}
-		else
-		{
-			if(_TX2_rx_timeout_count > 3) _transmit_state_data = 0x32;
-		}
-	}
-	
-	if(!_state_trans2)
-	{
-		_transmit_state_data = 0x30;
-	}
+	static cx_uint_t _count_relay_vol_off = 0;
+
+	uint8_t local_data_copy[18];  // ë¡œì»¬ ë³µì‚¬ë³¸ ìƒì„±
+
+	memset(local_data_copy, 0x30, sizeof(local_data_copy)); 
+
+	if(0x30 == _transmit_state_data || 0x32 == _transmit_state_data) memcpy(local_data_copy, Trans1_rx_data, 18);
+	else if(0x31 == _transmit_state_data || 0x33 == _transmit_state_data) memcpy(local_data_copy, Trans2_rx_data, 18);
+	else if(0x34 == _transmit_state_data) memset(local_data_copy, 0x30, 18);
 
 	_DG_tx_buffer[3] = _transmit_state_data;
-	
-	memcpy(&_DG_tx_buffer[4],Tranmitt_active_data_buf,18);
-	memset(Tranmitt_active_data_buf, 0x30, 18);
-	
-	impulse_voltage_plus = impulse_voltage_plus/10;
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[22+i]	=(impulse_voltage_plus/POW(10,2-i))%10+'0';
-	}
-	
-	impulse_voltage_minus = impulse_voltage_minus/10;
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[25+i]	=(impulse_voltage_minus/POW(10,2-i))%10+'0';
-	}
-	
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[28+i]	=(rx_frequency/POW(10,2-i))%10+'0';
-	}
-	rx_current/=10;
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[31+i]	=(rx_current/POW(10,2-i))%10+'0';
-	}
-	
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[34+i]	=(relay_voltage_v2/POW(10,2-i))%10+'0';
-	}
-	
-	for(i=0;i<3;i++)
-	{
-		_DG_tx_buffer[37+i]	=(relay_voltage_v1/POW(10,2-i))%10+'0';
-	}
 
-	if(_relay_input_value == CX_TRUE)
-	{
-		relay_data = 0x31;
-		_count_relay_vol_off = 0u;
-	}
-	else
-	{
-		
-		if(relay_voltage_v1 >= 20 && relay_voltage_v2 >= 20)
-		{
-			
-			{
-				relay_data = 0x32;
-			}
-		}
-		else
-		{
-			relay_data = 0x30;
-			_count_relay_vol_off=0;
-		}
-		if(_TX1_rx_timeout_count > 5 && _TX2_rx_timeout_count > 5)
-		{
-			_TX1_rx_timeout_count = 10;
-			_TX2_rx_timeout_count = 10;
-			relay_data =0x34;
-		}
-		_count_relay_vol_off = 0u;
-	}
+	//memset(Trans1_rx_data, 0x30, 18);  // ì›ë³¸ ì´ˆê¸°í™”ëŠ” ì—¬ê¸°ì„œ!
+	//memset(Trans2_rx_data, 0x30, 18);  
+
+
+	temp_ReadID1 = GPIO_ReadInputData(GPIOE);
+	temp_ReadID1 = ~(temp_ReadID1) & 0x3C;
+	rotary_sw_1 = reverse4((temp_ReadID1 >> 2) & 0x0F);
+
+	temp_ReadID2 = GPIO_ReadInputData(GPIOC);
+	temp_ReadID2 = ~(temp_ReadID2) & 0x000F;
+	rotary_sw_2 = reverse4((temp_ReadID2 >> 0) & 0x0F);
+
+
+	impulse_voltage_plus  = get_imnpulse_voltage_plus_value() / 10;
+	impulse_voltage_minus = get_imnpulse_voltage_minus_value() / 10;
+	relay_voltage_v1      = get_relay_voltage_v1_value() / 10;
+	relay_voltage_v2      = get_relay_voltage_v2_value() / 10;
+	rx_current            = get_rx_current_value() / 10;
+	rx_frequency          =_freq_data;//(cx_uint_t)(get_rx_3hz_frequency_value() * 100);
+
+
+
+	_DG_tx_buffer[0] = 0x02;
+	_DG_tx_buffer[1] = fcs_conv(rotary_sw_1);
+	_DG_tx_buffer[2] = fcs_conv(rotary_sw_2);
 
 	
-	_DG_tx_buffer[40]=relay_data;
+	memcpy(&_DG_tx_buffer[4], local_data_copy, 18);  // ë³µì‚¬ë³¸ì„ ì‚¬ìš©
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[22 + i] = (impulse_voltage_plus / POW(10, 2 - i)) % 10 + '0';
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[25 + i] = (impulse_voltage_minus / POW(10, 2 - i)) % 10 + '0';
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[28 + i] = (rx_frequency / POW(10, 2 - i)) % 10 + '0';
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[31 + i] = (rx_current / POW(10, 2 - i)) % 10 + '0';
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[34 + i] = (relay_voltage_v2 / POW(10, 2 - i)) % 10 + '0';
+
+	for (i = 0; i < 3; i++)
+		_DG_tx_buffer[37 + i] = (relay_voltage_v1 / POW(10, 2 - i)) % 10 + '0';
+
+
+	_DG_tx_buffer[40] = transmit_relay_input_value;
 	fcs_value = fcs_rx(&_DG_tx_buffer[1], 40);
-	_DG_tx_buffer[41]=fcs_conv(fcs_value>>4);
-	_DG_tx_buffer[42]=fcs_conv(fcs_value&0x0f);
-	_DG_tx_buffer[43]=0x03;
-	_DG_tx_buffer[44]=0x0D;
-	_DG_tx_buffer[45]=0x0A;
-	
-	// if ( CX_TRUE==_relay_input_value )  
-	// {
-	// 	if(_timer_count_transmit >=40 && _timer_count_transmit<=575)
-	// 	{
-	// 		put_str(_DG_tx_buffer);
-	// 	}
-	// }
-	// else
-	// {
-	// 	put_str(_DG_tx_buffer);
-	// 	_timer_count_transmit=0;
-	// }
-	
-	//-----------------------------------------------------------------------
-	put_str(_DG_tx_buffer);
+	_DG_tx_buffer[41] = fcs_conv(fcs_value >> 4);
+	_DG_tx_buffer[42] = fcs_conv(fcs_value & 0x0F);
+	_DG_tx_buffer[43] = 0x03;
+	_DG_tx_buffer[44] = 0x0D;
+	_DG_tx_buffer[45] = 0x0A;
+
+	put_str(_DG_tx_buffer);  // ì‹¤ì œ ì†¡ì‹ 
+
 	_timer_count_transmit = CX_FALSE;
-	_flag_transmit=CX_FALSE;
+	memset(&_DG_tx_buffer[4], 0x30, 18);  // ë‹¤ìŒ ì¶œë ¥ ì´ˆê¸°í™”
+	_flag_transmit = CX_FALSE;
 }
 
 
@@ -1148,19 +1036,22 @@ static void transmit (void)
 static void control_watch (void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE==_flag_control_watch)	//100ms ÁÖ±â
+	if (CX_FALSE==_flag_control_watch)	//100ms ï¿½Ö±ï¿½
 	{
 		return;
 	}
 	
-	cx_uint_t fail_check_chattering_count = 30u;	//3ÃÊ
-	cx_uint_t relay_excitaion_condition;
+	cx_uint_t fail_check_chattering_count = 30u;	//3ï¿½ï¿½
+	
 	cx_uint_t relay_drop_condition;
+	cx_uint_t relay_excitaion_condition;
+
 	cx_uint_t get_relay_voltage_V1;
 	cx_uint_t get_relay_voltage_V2;
 	
-	cx_bool_t fail_max_count = 15u;	//3ÃÊ
-		
+	cx_bool_t fail_max_count = 15u;	//3ì´ˆ
+	cx_bool_t check_railrelay_drop = 8u; //2ì´ˆ
+
 	static cx_uint_t _fail_count_false_drop 	= 0u;
 	static cx_uint_t _fail_count_false_excitation 	= 0u;
 	//-----------------------------------------------------------------------
@@ -1210,14 +1101,16 @@ static void control_watch (void)
 	get_relay_voltage_V1  = get_relay_voltage_v1_value();
 	get_relay_voltage_V2  = get_relay_voltage_v2_value();
 	
-	//°èÀü±â ¿©ÀÚµÇ´Â ¹üÀ§, V1Àü¾Ğ 25/V2Àü¾Ğ 35 ÀÌ»ó
+	
+
+	//ê³„ì „ê¸° ì—¬ìë˜ëŠ” ë²”ìœ„, V1ì „ì•• 25/V2ì „ì•• 35 ì´ìƒ
 	if( (get_relay_voltage_V1 >= 250) && (get_relay_voltage_V2 >= 350) )	
 	{
 		relay_excitaion_condition = CX_TRUE;
 	}	
 	else relay_excitaion_condition = CX_FALSE;
 	
-	//°èÀü±â ³«ÇÏµÇ´Â ¹üÀ§, V1Àü¾Ğ 10/V2Àü¾Ğ 20 ÀÌÇÏ
+	//ê³„ì „ê¸° ë‚™í•˜ë˜ëŠ” ë²”ìœ„, V1ì „ì•• 10/V2ì „ì•• 20 ì´í•˜
 	if( (get_relay_voltage_V1 < 100) && (get_relay_voltage_V2 < 200) )	
 	{
 		relay_drop_condition = CX_TRUE;
@@ -1226,7 +1119,7 @@ static void control_watch (void)
 	
 	
 	//-----------------------------------------------------------------------
-	//ºÎÁ¤³«ÇÏ.. ÀÓÆŞ½º Àü¾Ğ ÀÖ´Âµ¥ ±Ëµµ°èÀü±â°¡ ¿©ÀÚÀÎ »óÅÂ
+	//ë¶€ì •ë‚™í•˜.. ì„í„ìŠ¤ ì „ì•• ìˆëŠ”ë° ê¶¤ë„ê³„ì „ê¸°ê°€ ì—¬ìì¸ ìƒíƒœ
 	if( (relay_excitaion_condition == CX_TRUE) && (_relay_input_value == CX_FALSE) )
 	{
 		if (_fail_count_false_drop >= fail_check_chattering_count)
@@ -1246,7 +1139,7 @@ static void control_watch (void)
 	}	
 	
 	//-----------------------------------------------------------------------
-	//ºÎÁ¤¿©ÀÚ.. ÀÓÆŞ½º Àü¾Ğ ¾ø´Âµ¥ ±Ëµµ°èÀü±â°¡ ¿©ÀÚÀÎ »óÅÂ
+	//ë¶€ì •ì—¬ì.. ì„í„ìŠ¤ ì „ì•• ì—†ëŠ”ë° ê¶¤ë„ê³„ì „ê¸°ê°€ ì—¬ìì¸ ìƒíƒœ
 	if( (relay_drop_condition == CX_TRUE) && (_relay_input_value == CX_TRUE) )
 	{
 		if (_fail_count_false_excitation >= fail_check_chattering_count)
@@ -1267,12 +1160,16 @@ static void control_watch (void)
 	//-----------------------------------------------------------------------
 	if( (CX_TRUE == _false_relay_drop) || (CX_TRUE == _false_relay_excitation) )
 	{
-		_inconsistency_fail = CX_TRUE;	//ºÒÀÏÄ¡ °íÀå
+		
+		_inconsistency_fail = CX_TRUE;	//ë¶ˆì¼ì¹˜ ê³ ì¥
+		flag_debug = _false_relay_drop;
+	
 	}	
 	else 
 	{
 		_inconsistency_fail = CX_FALSE;
 	}	
+	//-----------------------------------------------------------------------
 	//-----------------------------------------------------------------------
 	_flag_control_watch = CX_FALSE;
 }
@@ -1281,27 +1178,74 @@ static void control_watch (void)
 static void control_input(void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE==_flag_control_input)	//50ms ÁÖ±â
+	if (CX_FALSE==_flag_control_input)	//50ms ï¿½Ö±ï¿½
 	{
 		return;
 	}
 	//-----------------------------------------------------------------------
 	cx_bool_t relay_input;
-	cx_uint_t input_trans_tab;
 	
-	cx_uint_t input_chattering_count 	= 6u;
+	cx_uint_t input_trans_tab;
+
+	cx_uint_t input_chattering_count 	= 4u;
 	static cx_uint_t _relay_input_count = 0u;
+	static cx_uint_t _count_relay_vol_off = 0;
 
+	cx_uint_t get_relay_voltage_V1 = 0;
+	cx_uint_t get_relay_voltage_V2 = 0;
+	
 	//-----------------------------------------------------------------------
-	relay_input = CX_FALSE;
+	
 
-
-
-    if( CX_FALSE == GPIO_I_Track_Relay())
+	get_relay_voltage_V1  = get_relay_voltage_v1_value();
+	get_relay_voltage_V2  = get_relay_voltage_v2_value();
+	
+	if( LOW == GPIO_I_Track_Relay())
 	{
 		relay_input = CX_TRUE;
 	}
-	
+	else if( HIGH == GPIO_I_Track_Relay())
+	{
+		relay_input = CX_FALSE;
+	}
+	else relay_input = CX_FALSE;
+
+	if(CX_TRUE == relay_input )
+	{
+		transmit_relay_input_value = 0x31;
+		_count_relay_vol_off = 0;
+	} 
+	else
+	{
+		if(CX_FALSE == relay_input)
+		{
+
+			if(get_relay_voltage_V1 > 250 && get_relay_voltage_V2 > 350)	
+			{
+				_count_relay_vol_off++;
+				if(_count_relay_vol_off>=200)
+				{
+					transmit_relay_input_value = 0x32;
+					_count_relay_vol_off = 300;
+				}
+				else
+				{
+					transmit_relay_input_value = 0x30;
+				}
+			}
+			else
+			{
+				transmit_relay_input_value = 0x30;
+				_count_relay_vol_off=0;
+			}
+			if(0x34 == _transmit_state_data)
+			{
+				transmit_relay_input_value = 0x34;
+
+			}
+		}
+	}
+
 	if (CX_TRUE==relay_input)
 	{
 		if (_relay_input_count < input_chattering_count)
@@ -1324,6 +1268,9 @@ static void control_input(void)
 			_relay_input_value = CX_FALSE;
 		}
 	}
+	
+	
+
 	//-----------------------------------------------------------------------
 	input_trans_tab = 0u;
 	
@@ -1360,7 +1307,7 @@ void application_show_version (void)
 
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
-static void update_istream (void)//ÃÖ½Å ¾÷µ¥ÀÌÆ® ÀÔ·Â ¹öÆÛ
+static void update_istream (void)//ï¿½Ö½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ® ï¿½Ô·ï¿½ ï¿½ï¿½ï¿½ï¿½
 {
 	peer_update();
 
@@ -1391,7 +1338,7 @@ static void reception (cx_bool_t enable)
 	cx_uint_t rx_size;
 
 	
-	rx_size = com_recv_buffer(COM2, _nb_rx_buffer, sizeof(_nb_rx_buffer)); //Tx 2°è
+	rx_size = com_recv_buffer(COM2, _nb_rx_buffer, sizeof(_nb_rx_buffer)); //Tx 2ï¿½ï¿½
 	if (rx_size > 0u)
 	{
 		if (CX_TRUE==enable)
@@ -1401,7 +1348,7 @@ static void reception (cx_bool_t enable)
 
 	}
 
-	rx_size = com_recv_buffer(COM4, _nb_rx_buffer, sizeof(_nb_rx_buffer));	//Tx 1°è
+	rx_size = com_recv_buffer(COM4, _nb_rx_buffer, sizeof(_nb_rx_buffer));	//Tx 1ï¿½ï¿½
 	if (rx_size > 0u)
 	{
 		if (CX_TRUE==enable)
@@ -1506,13 +1453,13 @@ void display_maked_fnd_data (const char* numstring, cx_bool_t* bufptr, cx_uint_t
     
 	if(len == 5)
     {		
-		position = 0;     	 //Ã¹¹øÂ° ÀÚ¸®
+		position = 0;     	 //Ã¹ï¿½ï¿½Â° ï¿½Ú¸ï¿½
     }
 	else if(len == 4)
     {
 	 	dot    = *(numstring+1);
-	 	if(dot == 0x2E)  position    = 1;	//µÎ¹øÂ° ÀÚ¸®
-	 	else position = 0;     				//Ã¹¹øÂ° ÀÚ¸®
+	 	if(dot == 0x2E)  position    = 1;	//ï¿½Î¹ï¿½Â° ï¿½Ú¸ï¿½
+	 	else position = 0;     				//Ã¹ï¿½ï¿½Â° ï¿½Ú¸ï¿½
        
     }
     else if(len == 3)
@@ -1593,12 +1540,12 @@ void fnd_write (cx_uint_t select, cx_uint8_t fndvalue)
 	cx_uint16_t ReadValue_portD;
 	cx_uint16_t ReadValue_portE;
 	
-	ReadValue_portD = GPIO_ReadInputData(GPIOD);   // ¾²±â Àü¿¡ ±âÁ¸°ª ÀĞ±â 
+	ReadValue_portD = GPIO_ReadInputData(GPIOD);   // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ğ±ï¿½ 
 	
 	portd_value |= select;    //PD8~PD15
 	GPIO_Write(GPIOD,(ReadValue_portD & 0x00FF) | portd_value);
 	
-	ReadValue_portE = GPIO_ReadInputData(GPIOE);   // ¾²±â Àü¿¡ ±âÁ¸°ª ÀĞ±â 
+	ReadValue_portE = GPIO_ReadInputData(GPIOE);   // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ğ±ï¿½ 
 	
 	porte_value |= fndvalue<<7; //PE7~PE14
 	GPIO_Write(GPIOE,(ReadValue_portE & 0x807F) | porte_value);
@@ -1643,14 +1590,14 @@ void input_front_mode_button(void)
 		
 		_status_mode_switch = CX_FALSE;
 		
-		_count_active_fnd_display = 0u;	//´©¸¦¶§¸¶´Ù FND off¸¦ À§ÇÑ Ä«¿îÆ® Å¬¸®¾î, ½Ã°£Áö³ª¼­ off½ÃÅ°±â À§ÇÑ º¯¼ö
+		_count_active_fnd_display = 0u;	//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ FND offï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ Ä«ï¿½ï¿½Æ® Å¬ï¿½ï¿½ï¿½ï¿½, ï¿½Ã°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ offï¿½ï¿½Å°ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 	}
 }
 
 void check_front_button(void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE == _flag_mode_sw_sequence)	//front FND ¹öÆ° ´©¸£´Â °æ¿ì
+	if (CX_FALSE == _flag_mode_sw_sequence)	//front FND ï¿½ï¿½Æ° ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
 	{
 		return; 
 	}
@@ -1660,12 +1607,18 @@ void check_front_button(void)
 	_flag_active_display = CX_TRUE;
 	
 	_input_mode_sw = GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_15);
+	
 	if(_input_mode_sw == 1)
 	{
-		_status_mode_switch = CX_TRUE;
-		_display_sequence++;
-		if(_display_sequence>=5) _display_sequence = 1u;
-		_flag_active_mode_switch = CX_FALSE;
+		if(cur_debounce_count-pre_debounce_count > 200u)
+		{
+			_status_mode_switch = CX_TRUE;
+			_display_sequence++;
+			if(_display_sequence>=5) _display_sequence = 1u;
+			_flag_active_mode_switch = CX_FALSE;
+
+			pre_debounce_count = cur_debounce_count;
+		}
 	}	
 	
 	//-----------------------------------------------------------------------
@@ -1675,7 +1628,7 @@ void check_front_button(void)
 void make_fnd_data (void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE ==_flag_make_display_data)	//500ms ÁÖ±â
+	if (CX_FALSE ==_flag_make_display_data)	//500ms ï¿½Ö±ï¿½
 	{
 		return;
 	}
@@ -1684,7 +1637,7 @@ void make_fnd_data (void)
 	char first_line   [5]  = {0,};	
 	char second_line  [5]  = {0,};	
 //	cx_uint_t  fnd_active_max_count 	  = 100u;	
-	cx_uint_t  fnd_change_max_count 	  = 10u;	//500ms*10 = 5ÃÊ
+	cx_uint_t  fnd_change_max_count 	  = 10u;	//500ms*10 = 5ï¿½ï¿½
 	
 	cx_uint_t  first_line_display_length  = 0u;
 	cx_uint_t  second_line_display_length = 0u;
@@ -1703,18 +1656,18 @@ void make_fnd_data (void)
 	cx_uint_t  trans_tab;
 	
 	//-----------------------------------------------------------------------
-	impulse_voltage_plus  = get_imnpulse_voltage_plus_value()/10;	//3ÀÚ¸®
-	impulse_voltage_minus = get_imnpulse_voltage_minus_value()/10;	//3ÀÚ¸®
+	impulse_voltage_plus  = get_imnpulse_voltage_plus_value()/10;	//3ï¿½Ú¸ï¿½
+	impulse_voltage_minus = get_imnpulse_voltage_minus_value()/10;	//3ï¿½Ú¸ï¿½
 	
-	relay_voltage_v1 = get_relay_voltage_v1_value()/10;			//3ÀÚ¸®
-	relay_voltage_v2 = get_relay_voltage_v2_value()/10;			//3ÀÚ¸®
+	relay_voltage_v1 = get_relay_voltage_v1_value()/10;			//3ï¿½Ú¸ï¿½
+	relay_voltage_v2 = get_relay_voltage_v2_value()/10;			//3ï¿½Ú¸ï¿½
 	
 	rx_current 		= get_rx_current_value();
 	int_rx_current  = (cx_uint_t)(rx_current/10);
 	
 	fnd_rx_current = (cx_float_t)int_rx_current/100;
 	
-	rx_frequency 	= get_rx_3hz_frequency_value();
+	rx_frequency 	= (cx_float_t)_freq_data/100; ////get_rx_3hz_frequency_value();
 	
 	id = _config.gpio_i_id;
 	
@@ -1783,13 +1736,13 @@ void make_fnd_data (void)
 		if(_display_sequence != 1u)	_count_active_fnd_display++;
 		else _count_active_fnd_display = 0u;
 
-		if (_count_active_fnd_display > fnd_change_max_count)	//5ÃÊ ÈÄ  
+		if (_count_active_fnd_display > fnd_change_max_count)	//5ï¿½ï¿½ ï¿½ï¿½  
 		{
 			_display_sequence = 1u;
 		}
 
 #if 0
-		//½Ã°£ Áö³ª¸é FND OFF½ÃÅ³ ¶§ »ç¿ë	
+		//ï¿½Ã°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ FND OFFï¿½ï¿½Å³ ï¿½ï¿½ ï¿½ï¿½ï¿½	
 		if (_count_active_fnd_display > fnd_active_max_count)	
 		{
 			_count_active_fnd_display = 0;
@@ -1827,10 +1780,10 @@ static void check_fault (void)
 		_application_halt = CX_TRUE;	
 	}	
 
-	if(_operating_time_second>3) //run ÀÌÈÄ 3ÃÊ ÀÌÈÄ Ã¼Å©
+	if(_operating_time_second>3) //run ï¿½ï¿½ï¿½ï¿½ 3ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ Ã¼Å©
 	{
 #if 0		
-		//Á¡À¯µÇ¸é ÁÖÆÄ¼öµµ ¾Èµé¾î¿À³ª?? 0¿ÈÀº ¾Èµé¾î¿À³×..failÃ³¸® ÇÒ ÇÊ¿ä ¾øÀ»µí
+		//ï¿½ï¿½ï¿½ï¿½ï¿½Ç¸ï¿½ ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½ ï¿½Èµï¿½ï¿½ï¿½ï¿½ï¿½?? 0ï¿½ï¿½ï¿½ï¿½ ï¿½Èµï¿½ï¿½ï¿½ï¿½ï¿½..failÃ³ï¿½ï¿½ ï¿½ï¿½ ï¿½Ê¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 		if (CX_FALSE==_analog_data.pulse_frequency.health)	
 		{
 //			_application_halt = CX_TRUE;	 
@@ -1842,39 +1795,10 @@ static void check_fault (void)
 		}		
 	}
 	//---------------------------------------------------------------------------
-	//RUN,FAIL LED Á¦¾î
+	//RUN,FAIL LED ï¿½ï¿½ï¿½ï¿½
 	if(_application_halt == CX_TRUE)	GPIO_O_CPU_LED_STATUS(0);
 	else 								GPIO_O_CPU_LED_STATUS(1);
 }
-
-
-//---------------------------------------------------------------------------
-void application_show_memory (void)
-{
-	cx_uint_t global_variable_size = 0u;
-
-	debug_printf("# GLOBAL VARIABLE SIZE\n");
-	debug_printf("\tsizeof(_com1_fifo_tx_buffer      )=%d\n",sizeof(_com1_fifo_tx_buffer      )); global_variable_size += sizeof(_com1_fifo_tx_buffer      );
-	debug_printf("\tsizeof(_com1_fifo_rx_buffer      )=%d\n",sizeof(_com1_fifo_rx_buffer      )); global_variable_size += sizeof(_com1_fifo_rx_buffer      );
-	debug_printf("\tsizeof(_com2_fifo_tx_buffer      )=%d\n",sizeof(_com2_fifo_tx_buffer      )); global_variable_size += sizeof(_com2_fifo_tx_buffer      );
-	debug_printf("\tsizeof(_com2_fifo_rx_buffer      )=%d\n",sizeof(_com2_fifo_rx_buffer      )); global_variable_size += sizeof(_com2_fifo_rx_buffer      );
-	debug_printf("\tsizeof(_com3_fifo_tx_buffer      )=%d\n",sizeof(_com3_fifo_tx_buffer      )); global_variable_size += sizeof(_com3_fifo_tx_buffer      );
-	debug_printf("\tsizeof(_com3_fifo_rx_buffer      )=%d\n",sizeof(_com3_fifo_rx_buffer      )); global_variable_size += sizeof(_com3_fifo_rx_buffer      );
-	debug_printf("\tsizeof(_com4_fifo_tx_buffer      )=%d\n",sizeof(_com4_fifo_tx_buffer      )); global_variable_size += sizeof(_com4_fifo_tx_buffer      );
-	debug_printf("\tsizeof(_com4_fifo_rx_buffer      )=%d\n",sizeof(_com4_fifo_rx_buffer      )); global_variable_size += sizeof(_com4_fifo_rx_buffer      );
-	
-	debug_printf("\tsizeof(_com2_stream_rx_bsb_buffer)=%d\n",sizeof(_com2_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com2_stream_rx_bsb_buffer);
-	debug_printf("\tsizeof(_com3_stream_rx_bsb_buffer)=%d\n",sizeof(_com3_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com3_stream_rx_bsb_buffer);
-	debug_printf("\tsizeof(_com4_stream_rx_bsb_buffer)=%d\n",sizeof(_com4_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com4_stream_rx_bsb_buffer);
-	
-	debug_printf("\tsizeof(_analog_data          	 )=%d\n",sizeof(_analog_data          	  )); global_variable_size += sizeof(_analog_data          	   );		
-	debug_printf("\tsizeof(_peer_connection          )=%d\n",sizeof(_peer_connection          )); global_variable_size += sizeof(_peer_connection          );		
-	debug_printf("\tsizeof(_equipment                )=%d\n",sizeof(_equipment                )); global_variable_size += sizeof(_equipment                );
-	debug_printf("\tsizeof(_config                   )=%d\n",sizeof(_config                   )); global_variable_size += sizeof(_config                   );
-	
-	debug_printf("\tTOTAL = %d \n", global_variable_size);
-}
-
 
 //---------------------------------------------------------------------------
 cx_bool_t application_initialize (void)
@@ -1915,6 +1839,31 @@ cx_bool_t application_initialize (void)
 //	ringbuf_init (&Trans2_rxringbuf, Trans2_rxbuf, Trans2_rxbufsize);
 	return CX_TRUE;
 }
+void application_show_memory (void)
+{
+	cx_uint_t global_variable_size = 0u;
+
+	debug_printf("# GLOBAL VARIABLE SIZE\n");
+	debug_printf("\tsizeof(_com1_fifo_tx_buffer      )=%d\n",sizeof(_com1_fifo_tx_buffer      )); global_variable_size += sizeof(_com1_fifo_tx_buffer      );
+	debug_printf("\tsizeof(_com1_fifo_rx_buffer      )=%d\n",sizeof(_com1_fifo_rx_buffer      )); global_variable_size += sizeof(_com1_fifo_rx_buffer      );
+	debug_printf("\tsizeof(_com2_fifo_tx_buffer      )=%d\n",sizeof(_com2_fifo_tx_buffer      )); global_variable_size += sizeof(_com2_fifo_tx_buffer      );
+	debug_printf("\tsizeof(_com2_fifo_rx_buffer      )=%d\n",sizeof(_com2_fifo_rx_buffer      )); global_variable_size += sizeof(_com2_fifo_rx_buffer      );
+	debug_printf("\tsizeof(_com3_fifo_tx_buffer      )=%d\n",sizeof(_com3_fifo_tx_buffer      )); global_variable_size += sizeof(_com3_fifo_tx_buffer      );
+	debug_printf("\tsizeof(_com3_fifo_rx_buffer      )=%d\n",sizeof(_com3_fifo_rx_buffer      )); global_variable_size += sizeof(_com3_fifo_rx_buffer      );
+	debug_printf("\tsizeof(_com4_fifo_tx_buffer      )=%d\n",sizeof(_com4_fifo_tx_buffer      )); global_variable_size += sizeof(_com4_fifo_tx_buffer      );
+	debug_printf("\tsizeof(_com4_fifo_rx_buffer      )=%d\n",sizeof(_com4_fifo_rx_buffer      )); global_variable_size += sizeof(_com4_fifo_rx_buffer      );
+	
+	debug_printf("\tsizeof(_com2_stream_rx_bsb_buffer)=%d\n",sizeof(_com2_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com2_stream_rx_bsb_buffer);
+	debug_printf("\tsizeof(_com3_stream_rx_bsb_buffer)=%d\n",sizeof(_com3_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com3_stream_rx_bsb_buffer);
+	debug_printf("\tsizeof(_com4_stream_rx_bsb_buffer)=%d\n",sizeof(_com4_stream_rx_bsb_buffer)); global_variable_size += sizeof(_com4_stream_rx_bsb_buffer);
+	
+	debug_printf("\tsizeof(_analog_data          	 )=%d\n",sizeof(_analog_data          	  )); global_variable_size += sizeof(_analog_data          	   );		
+	debug_printf("\tsizeof(_peer_connection          )=%d\n",sizeof(_peer_connection          )); global_variable_size += sizeof(_peer_connection          );		
+	debug_printf("\tsizeof(_equipment                )=%d\n",sizeof(_equipment                )); global_variable_size += sizeof(_equipment                );
+	debug_printf("\tsizeof(_config                   )=%d\n",sizeof(_config                   )); global_variable_size += sizeof(_config                   );
+	
+	debug_printf("\tTOTAL = %d \n", global_variable_size);
+}
 
 
 
@@ -1922,7 +1871,7 @@ cx_bool_t application_initialize (void)
 //===========================================================================
 void hw_driver_initialize (void)
 {
-	// hardware ÃÊ±âÈ­ Àü
+	// hardware ï¿½Ê±ï¿½È­ ï¿½ï¿½
 	io_fifo_initialize(&_com_fifo[COM2], _com2_fifo_rx_buffer, sizeof(_com2_fifo_rx_buffer), _com2_fifo_tx_buffer, sizeof(_com2_fifo_tx_buffer));
 	io_fifo_initialize(&_com_fifo[COM3], _com3_fifo_rx_buffer, sizeof(_com3_fifo_rx_buffer), _com3_fifo_tx_buffer, sizeof(_com3_fifo_tx_buffer));
 	io_fifo_initialize(&_com_fifo[COM4], _com4_fifo_rx_buffer, sizeof(_com4_fifo_rx_buffer), _com4_fifo_tx_buffer, sizeof(_com4_fifo_tx_buffer));
@@ -1956,14 +1905,14 @@ void application_halt (void)
 	debug_printf("# HALT \n");
 #if 0 
 	//----------------------------------------------------------------------
-	//°íÀå ½Ã µ¿ÀÛ Ãß°¡
+	//ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ß°ï¿½
 	clear_measured_data();
 	
 	//---------------------------------------------------------------------------
 
 	while(1)
 	{		
-		// µğ¹ö±ë ½©
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
 		debug_shell();
 		
 		control_watch();
@@ -1998,33 +1947,35 @@ void application_run (void)
 	t1 = _operating_time_second;
 	t2 = t1;
 	
-	memset(Tranmitt_active_data_buf, 0x30, 18);
-	
+	memset(Trans1_rx_data, 0x30, 18);
+	memset(Trans2_rx_data, 0x30, 18);
+
 	while (1)
   	{
     	t2 = _operating_time_second;
 		
 		//recrption
-		reception (CX_TRUE);
-		update_istream();
-		update_equipment();
+		//reception (CX_TRUE);
+		//update_istream();
+		//update_equipment();
 		Trans1_Input();
 		Trans2_Input();
 		
-		//¾Æ³¯·Î±× µ¥ÀÌÅÍ °¨½Ã, ±Ëµµ°èÀü±â ÀÔ·Â Ã¼Å©
+		//ï¿½Æ³ï¿½ï¿½Î±ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ô·ï¿½ Ã¼Å©
 		control_watch();
 		control_input();
 		
 		//Measure ADC
-		control_impulse_voltage_input();
+		//control_impulse_voltage_input();
         control_relay_voltage_input();
 		
 		// fail Ã¼Å©
-//		check_watchdog_input_data();	// ¿ÜºÎ ¿ÍÄ¡µ¶ ÀÔ·Â Ã¼Å©
+//		check_watchdog_input_data();	// ï¿½Üºï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½Ô·ï¿½ Ã¼Å©
 		check_fault ();
 		
-		// Åë½Å ¼Û½Å
+		// ï¿½ï¿½ï¿½ ï¿½Û½ï¿½
 //		update_ostream();
+		check_state_Transmitter();
 		transmit ();
 		
 		//check mode switch
@@ -2033,8 +1984,8 @@ void application_run (void)
 		//make Display Data
 		make_fnd_data();
 		
-		// µğ¹ö±ë ½©
-		debug_shell();
+		// ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½
+		//debug_shell();
 				
 
 //---------------------------------------------------------------------------

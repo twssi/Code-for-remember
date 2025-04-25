@@ -1,8 +1,6 @@
 #ifndef INCLUDED__MCU_APPLICATION__H
 #define INCLUDED__MCU_APPLICATION__H
 
-
-
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
 MCU_API cx_uint_t _application_halt;
