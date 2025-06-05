@@ -35,9 +35,10 @@ extern defaultitem playeritem;
 
 
 void intro(void);
-void characater_select(void);
+void character_select(void);
 const char* player_job(int job);
 void player_data(int job);
 void monster_data(void);
 void battle_data(Player player, Monster monster);
 void battle_info(void);
+void display_ascii_art(void);

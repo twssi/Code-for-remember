@@ -1,14 +1,18 @@
+
 #include "main.h"
 #include "player.h"
 #include "monster.h"
 
-static int player_databuf[5]= {0,};
+// Global objects for the game
+Player player;
+Monster monster;
+defaultitem playeritem;
 
 
 int main(void)
 {
 
-    characater_select();
+    character_select();
 
     return 0;
 }
@@ -23,11 +27,11 @@ void player_data(int job)
 {
     
 
-    if(1 == job) 
+    if(1 == job)
     {
-        player.health = player_zealot_default_health,
-        player.mana = player_zealot_default_mana,
-        player.armor = player_zealot_default_armor,
+        player.health = player_zealot_default_health;
+        player.mana = player_zealot_default_mana;
+        player.armor = player_zealot_default_armor;
         player.damage = player_zealot_default_damage;
 
 
@@ -97,7 +101,7 @@ const char* player_job(int job)
     return "알 수 없는 직업";
 }
 
-void characater_select(void) 
+void character_select(void)
 {
     unsigned int job;
     char answer = 'n';
@@ -145,7 +149,7 @@ void intro(void)
             break;
         case 2: // 흑마법사
             printf("\n 어둠과 계약한 자.\n");
-            printf("%S은 영혼을 대가로 금단의 지식을 얻었으나, 대가는 영원한 마력과 생명에대한 갈증이었다.\n", player.player_name);
+            printf("%s은 영혼을 대가로 금단의 지식을 얻었으나, 대가는 영원한 마력과 생명에대한 갈증이었다.\n", player.player_name);
             printf("끝없는 영혼을 고치기위해 또 다시 금단의 지식을 찾아 왕국의 타락한 도시로 향한다.\n");
             break;
         case 3: // 용병
@@ -174,10 +178,11 @@ void intro(void)
             break;
     }
 
-    printf("도시로 향한 %s은 수십 수일의 시간이 흘러 도시 앞 그 누구도 지키고 있지 않은 문 앞에 당도 하였다.\n");
+    printf("도시로 향한 %s은 수십 수일의 시간이 흘러 도시 앞 그 누구도 지키고 있지 않은 문 앞에 당도 하였다.\n", player.player_name);
     printf("\n어둡고 적막한 도시의 모습만이 당신을 기다리고 있다. 무엇도 장담 할 수 없는 어두운 그곳에서 각자의 이야기를 따라 흘러가며\n");
     printf("타락한곳에서 모든것이 하나로 모이니.\n");
     printf("그대는...준비되었는가?\n");
+    display_ascii_art();
 }
 
 
@@ -205,5 +210,12 @@ void battle_info(void)
 {
     printf("당신은 기습 당했습니다! 전투를 준비하십시오!\n");
     printf("미처 판단하기도 전에 당신은 죽었습니다...\n");
+}
+
+void display_ascii_art(void)
+{
+    printf("   O   \n");
+    printf("  /|\\  \n");
+    printf("  / \\  \n");
 }
 
