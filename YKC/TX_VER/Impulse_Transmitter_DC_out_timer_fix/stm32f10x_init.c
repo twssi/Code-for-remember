@@ -123,10 +123,10 @@ void TIME3_initial_PWM(void)
   RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
   
   /* Time base configuration */
-    TIM_TimeBaseStructure.TIM_Prescaler = 2400-1;     //3.0hz  
-//  TIM_TimeBaseStructure.TIM_Prescaler = 2482-1; //2.9hz
-//  TIM_TimeBaseStructure.TIM_Prescaler = 2322-1; //3.1hz
-//  TIM_TimeBaseStructure.TIM_Prescaler = 2460-1; //2.92hz
+  TIM_TimeBaseStructure.TIM_Prescaler = 2400-1;     //3.0hz  
+  //TIM_TimeBaseStructure.TIM_Prescaler = 2482-1; //2.9hz
+  //TIM_TimeBaseStructure.TIM_Prescaler = 2322-1; //3.1hz
+  //TIM_TimeBaseStructure.TIM_Prescaler = 2460-1; //2.92hz
 //  TIM_TimeBaseStructure.TIM_Prescaler = 2335-1; //3.08hz
   TIM_TimeBaseStructure.TIM_Period = 10000-1;
 
@@ -194,7 +194,7 @@ void GPIO_port_initial(void)
 
 	//--------------------------------------------------------------------------
 	// Input setting GPIOC
-	/* 2: mode SW input, 5: tx 1/2°è input  6: Pulse clock pin, 7~9: DI-4~2   */    
+	/* 2: mode SW input, 5: tx 1/2ï¿½ï¿½ input  6: Pulse clock pin, 7~9: DI-4~2   */    
 	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_5 ;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOC, &GPIO_InitStructure);    
@@ -235,7 +235,7 @@ void GPIO_port_initial(void)
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
     
-    GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
+    GPIO_InitStructure.GPIO_Pin   =  GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15; //GPIO_Pin_12 |
 	GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_Out_PP;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(GPIOB, &GPIO_InitStructure);
@@ -795,7 +795,7 @@ void DMA_initial(void)
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 	DMA_Init(DMA1_Channel1, &DMA_InitStructure);
     
-    //ÀÎÅÍ·´Æ®
+    //ï¿½ï¿½ï¿½Í·ï¿½Æ®
 	/* Enable DMA1 Channel6 Transfer Complete interrupt */
 	DMA_ITConfig(DMA1_Channel1, DMA_IT_TC, ENABLE);
     

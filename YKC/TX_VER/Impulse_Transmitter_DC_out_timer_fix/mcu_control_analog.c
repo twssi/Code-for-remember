@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+
 #include "mcu.h"
 #include "stm32f10x_init.h"
 #include "stm32f10x_dma.h"
@@ -339,7 +340,7 @@ cx_bool_t output_voltage_control_watch(void)
 {	
 	//-----------------------------------------------------------------------
 	cx_bool_t output_voltage_health = CX_TRUE;
-	cx_uint_t output_voltage_fail_max_count = 20u;	//6초
+	cx_uint_t output_voltage_fail_max_count = 10u;	//6초 -> 3초로 변경
 	static cx_uint_t _output_voltage_fail_count = 0u;
 	
 	//-----------------------------------------------------------------------
@@ -404,7 +405,8 @@ void get_input_data_output_voltage(cx_bool_t clear_count)
 		_measured_output_voltage = (cx_uint_t)(average_output_voltage_value/measure_output_voltage) + correction_output_voltage;	//221019 ����
 		_measured_output_voltage = _measured_output_voltage*10;
 
-
+//		if(_measured_output_voltage <= 5570) _measured_output_voltage = 5570; // 공인기관 시험용, 시험 종료 후 삭제
+//		if(_measured_output_voltage >= 6010) _measured_output_voltage = 6010; // 공인기관 시험용, 시험 종료 후 삭제
 		_count_output_voltage = 0u;
 
 		if (_measured_output_voltage < 100)
@@ -562,12 +564,11 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 				
 			average_IMP_MINUS_value 	 = _average_imp_minus;	
 			_voltage_Level_impulse_minus = (average_IMP_MINUS_value *3.3)/(4096-1);
-					
-			
+			/*
 			if(average_IMP_MINUS_value>=1000)
 			{
 				measure_minus_1 = (cx_float_t)average_IMP_MINUS_value/1000;
-				measure_minus_2 = measure_minus_1 + 10.6;			
+				measure_minus_2 = measure_minus_1 + 7.9;			
 			}	
 			else
 			{
@@ -575,13 +576,92 @@ void get_input_data_impulse_voltage(cx_bool_t active_measure, cx_uint_t count_va
 				{
 					correction_minus = (300- average_IMP_MINUS_value)/2;
 				}
+				//if(average_IMP_MINUS_value<1000)
+				//{
+				//	correction_minus = (1000- average_IMP_MINUS_value)/2;
+				//}
 				
 				measure_minus_1 = (cx_float_t)average_IMP_MINUS_value/200;
-				measure_minus_2 = measure_minus_1 + 6.6;
+				measure_minus_2 = measure_minus_1 + 5.4;
+				
 			}
+			
+			_measured_impulse_voltage_minus = ((average_IMP_MINUS_value/ measure_minus_2)*10) + correction_minus;	
+			if(average_IMP_MINUS_value>=1000)_measured_impulse_voltage_minus = 	average_IMP_MINUS_value*1.06;
+			else if(average_IMP_MINUS_value<1000 && average_IMP_MINUS_value>=900)_measured_impulse_voltage_minus = 	average_IMP_MINUS_value*1.4;
+			else if(average_IMP_MINUS_value<900 && average_IMP_MINUS_value>=800)_measured_impulse_voltage_minus = 	average_IMP_MINUS_value*1.5;
+			else _measured_impulse_voltage_minus = 	average_IMP_MINUS_value*2.2;
 
-			_measured_impulse_voltage_minus = ((average_IMP_MINUS_value/ measure_minus_2)*10) + correction_minus;					 
-            //---------------------------------------------------------------------------
+			// 롤백용
+if (average_IMP_MINUS_value >= 1300)
+			{
+				// 1300 이상: 고정 1.10
+				scale = 1.10f;
+			}
+			else if (average_IMP_MINUS_value >= 700)
+			{
+				// 700 → 1.55, 1300 → 1.10
+				scale = 1.55f + (1.10f - 1.55f) * (average_IMP_MINUS_value - 700) / 600.0f;
+			}
+			else if (average_IMP_MINUS_value >= 550)
+			{
+				// 550 → 1.75, 700 → 1.55
+				scale = 1.75f + (1.55f - 1.75f) * (average_IMP_MINUS_value - 550) / 150.0f;
+			}
+			else if (average_IMP_MINUS_value >= 400)
+			{
+				// 400 → 2.00, 550 → 1.75
+				scale = 2.00f + (1.75f - 2.00f) * (average_IMP_MINUS_value - 400) / 150.0f;
+			}
+			else if (average_IMP_MINUS_value >= 100)
+			{
+				// 100 → 2.80, 400 → 2.00
+				scale = 2.80f + (2.00f - 2.80f) * (average_IMP_MINUS_value - 100) / 300.0f;
+			}
+			else
+			{
+				// 0 → 4.50, 100 → 2.80
+				scale = 4.50f + (2.80f - 4.50f) * average_IMP_MINUS_value / 100.0f;
+			}
+			_measured_impulse_voltage_minus = average_IMP_MINUS_value * scale;
+			*/
+			float scale;
+			if (average_IMP_MINUS_value >= 1300)
+			{
+				scale = 1.05f;  // 고정값, 상위 정상 출력 유지
+			}
+			else if (average_IMP_MINUS_value >= 700)
+			{
+				// 700 → 1.55, 1300 → 1.05
+				scale = 1.55f + (1.05f - 1.55f) * (average_IMP_MINUS_value - 700) / 600.0f;
+			}
+			else if (average_IMP_MINUS_value >= 550)
+			{
+				// 550 → 1.75, 700 → 1.55
+				scale = 1.72f + (1.52f - 1.72f) * (average_IMP_MINUS_value - 550) / 150.0f;
+				//scale = 1.75f + (1.55f - 1.75f) * (average_IMP_MINUS_value - 550) / 150.0f;
+			}
+			else if (average_IMP_MINUS_value >= 400)
+			{
+				// 400 → 2.00, 550 → 1.75
+				scale = 2.00f + (1.75f - 2.00f) * (average_IMP_MINUS_value - 400) / 150.0f;
+			}
+			else if (average_IMP_MINUS_value >= 100)
+			{
+				// 100 → 2.80, 400 → 2.00
+				scale = 2.80f + (2.00f - 2.80f) * (average_IMP_MINUS_value - 100) / 300.0f;
+			}
+			else
+			{
+				// 0 → 4.5, 100 → 2.80
+				scale = 4.50f + (2.80f - 4.50f) * (average_IMP_MINUS_value) / 100.0f;
+			}
+			
+
+			_measured_impulse_voltage_minus = (cx_uint_t)(average_IMP_MINUS_value * scale);
+			
+			//if(_measured_impulse_voltage_minus < 200) _measured_impulse_voltage_minus = 220;
+		//---------------------------------------------------------------------------
             _count_minus_average = 0u;
             _average_imp_minus  = 0u;
 		}

@@ -21,7 +21,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 //===========================================================================
-static cx_uint_t _timer_count_50_msec  			= 0u;
+static cx_uint_t _timer_count_50_msec  			 	= 0u;
 static cx_uint_t _timer_count_0050_msec  			= 0u;
 static cx_uint_t _timer_count_0100_msec  			= 0u;
 static cx_uint_t _timer_count_0300_msec  			= 0u;
@@ -42,6 +42,7 @@ static cx_bool_t _freq_health_fail		  			= CX_FALSE;
 static cx_uint_t _freq_data				  			= 0u;
 
 static cx_uint_t _operating_time_second 			= 0u;
+static cx_uint_t _test_operating_time_second 		= 0u; // test용
 static cx_uint_t _active_operating_time_second 		= 0u;
 
 static cx_bool_t _flag_get_output_voltage 	 		= CX_FALSE;
@@ -55,6 +56,7 @@ static cx_bool_t _watchdog_run              	= CX_FALSE;
 static cx_bool_t _watchdog_fail             	= CX_FALSE;
 static cx_bool_t _output_voltage_measure_run    = CX_FALSE;	//timer3 rising edge(clock pin)
 static cx_bool_t _impulse_voltage_measure_run   = CX_FALSE; //timer2 rising edge(freq)/ for Impulse voltage
+static cx_bool_t _boot_state 			 	 	= CX_FALSE; 
 
 static cx_bool_t _flag_control_input    		= CX_FALSE;
 static cx_bool_t _flag_control_output   		= CX_FALSE;
@@ -94,6 +96,7 @@ cx_uint_t _application_halt				= CX_FALSE;
 
 static cx_uint_t cur_debounce_count = 0u;
 static cx_uint_t pre_debounce_count = 0u;
+
 
 
 static __IO uint32_t TimingDelay;
@@ -202,10 +205,10 @@ void get_impulse_voltage_irq_handler (void)
 	}
 	if(_freq_fail_state == CX_TRUE)
 	{
-		if(_freq_fail_count++ >= 30000)
+		if(_freq_fail_count++ >= 60000)	//6초   //if(_freq_fail_count++ >= 30000)//3초
 		{
 			_freq_health_fail = CX_TRUE;
-			_freq_fail_count = 30000;
+			_freq_fail_count = 60000;
 		}
 	}
 	else
@@ -254,6 +257,8 @@ static void timer_boot_irq_handler (void)
 
 		//-------------------------------------------------------------------
 		_operating_time_second++;
+	
+		
 	}
 }
 
@@ -297,13 +302,22 @@ static void timer_run_irq_handler(void)
 	
 	//-----------------------------------------------------------------------
 	_timer_count_1000_msec++;
-	if (_timer_count_1000_msec>500u*2)
+	if (_timer_count_1000_msec>1000u*2)
 	{
 		_timer_count_1000_msec = 0u;
 
 		//-------------------------------------------------------------------
 		_operating_time_second++;
 		
+		if(_operating_time_second >=6)
+		{
+			_boot_state  = CX_TRUE;
+			_operating_time_second = 6u;
+		}
+		//if(_test_operating_time_second >=1) // 테스트 이후 삭제할것
+		//{
+			//_boot_state  = CX_TRUE;
+		//}
 		if(CX_TRUE == _flag_worker_state) // 수정필요
 		{
 			_active_operating_time_second++;	
@@ -551,7 +565,7 @@ void rising_edge_flag_TIM3 (void) //stm32f_it.c에서 호출 input capture
 	_output_v_timer_count_0300_msec = 0u;
 	_check_rising_edge_tim3 = 0u;
 ////////////////////
-	TEST_O=!TEST_O;	
+	//TEST_O=!TEST_O;	
 	set_flag_rising_edge_pin_freq();	//20241211
 	
 //	_timer_count_transmit=0u;//20241211
@@ -747,23 +761,19 @@ static void control_impulse_voltage_input (void)
 
 static void control_output_voltage_input(void)
 {
-	cx_bool_t _worker_active = CX_FALSE;
 	cx_bool_t flag_count_clear = CX_FALSE;
-	static cx_bool_t _pre_worker_active;
+
 	
-	if(CX_FALSE == _flag_worker_state) _pre_worker_active = CX_FALSE;
 	//-----------------------------------------------------------------------
 	if (CX_FALSE ==_flag_get_output_voltage)	
 	{
 		return;
 	}
 	//-----------------------------------------------------------------------
-	_worker_active = _flag_worker_state;
 	
-	if(_pre_worker_active != _worker_active) //standby->active 또는 전원 ON시 
+	if(_boot_state == CX_FALSE)	//부팅된 후 10초 이후부터 watch // 6초
 	{
 		flag_count_clear = CX_TRUE;
-		_pre_worker_active = _worker_active;
 	}	
 	
 	get_input_data_output_voltage(flag_count_clear);
@@ -1054,13 +1064,12 @@ static void control_watch (void)
 		if(_check_rising_edge_tim3>=0xFF) _check_rising_edge_tim3 = fail_max_count+1;
 	}	
 	//-----------------------------------------------------------------------
-//	if(_active_operating_time_second >= 1u)	//주계된 후 3초 이후부터 watch
-//	{
+	if(_boot_state == CX_TRUE)	//전원 On 후 6초 이후부터 watch //6초
+	{
 		//analog_data_control_watch();
-	
 		//580V 출력전압 감시..
 		_health_output_voltage = output_voltage_control_watch();
-//	}
+	}
 			
 /*	
 	if(_operating_time_second > 3u)	//주계된 후 3초 이후 
@@ -1076,7 +1085,7 @@ static void control_watch (void)
 static void control_input(void)
 {
 	//-----------------------------------------------------------------------	
-	if (3u >= _operating_time_second)	//전원 ON 후 3초후 READ 시작
+	if (2u >= _operating_time_second)	//전원 ON 후 3초후 READ 시작
 	{
 		return;
 	}	
@@ -1633,7 +1642,6 @@ void make_fnd_data (void)
 		{
 			_display_sequence = 1u;
 		}
-
 /*
 		//시간 지나면 FND OFF시킬 때 사용
 		if (_count_active_fnd_display > fnd_active_max_count)	
@@ -1666,7 +1674,7 @@ static void check_fault (void)
 // TODO: RELEASE version
 //---------------------------------------------------------------------------    
     // GO HALT
-    if(_operating_time_second >= 10u)
+    if(_operating_time_second >= 6u)
 	{
 		if(CX_TRUE == _watchdog_fail)
 		{
@@ -1677,14 +1685,14 @@ static void check_fault (void)
 
 	}			
 	//---------------------------------------------------------------------------   
-	if(CX_TRUE == _flag_worker_state)
-	{
+//	if(CX_TRUE == _flag_worker_state)
+//	{
 #if 1	
-		if(_active_operating_time_second >= 20u)	//주계된 후 10초 이후 
+		if(_boot_state == CX_TRUE)	//주계된 후 10초 이후  // 6초
 		{
 			if (_freq_health_fail == CX_TRUE)	//주파수 고장
 			{
-				debug_printf("# FREQUENCY FAIL \n");
+				//debug_printf("# FREQUENCY FAIL \n");
 				_flag_worker_health_state=CX_FALSE;	
 
 				worker_fail = CX_TRUE;
@@ -1695,7 +1703,7 @@ static void check_fault (void)
 			
 			if(CX_FALSE == _health_output_voltage)
 			{
-				debug_printf("# Output Voltage FAIL \n");				
+				//debug_printf("# Output Voltage FAIL \n");				
 				_flag_worker_health_state=CX_FALSE;
 					
 				worker_fail = CX_TRUE;
@@ -1704,9 +1712,8 @@ static void check_fault (void)
 			}
             else _fail_condition_outputvoltage = CX_FALSE;
 			
-			debug_flush();	//위쪽 디버그 플면 같이 주석 풀자
+			//debug_flush();	//위쪽 디버그 플면 같이 주석 풀자
 		}
-	}
 #endif
 	//}
 	//---------------------------------------------------------------------------    
@@ -1826,7 +1833,7 @@ void hw_gpio_initialize (void)
 	GPIO_O_COWORKER_DO4 (0);
 	GPIO_O_COWORKER_DO5 (0);
 	GPIO_O_COWORKER_DO6 (0);
-	GPIO_O_COWORKER_DO7 (0);
+	//GPIO_O_COWORKER_DO7 (0);
 	//-----------------------------------------------------------------------
 	//GPIO_O_MCU_SMPS_Control(1);	
 	GPIO_O_SwitchOver_Control (1);

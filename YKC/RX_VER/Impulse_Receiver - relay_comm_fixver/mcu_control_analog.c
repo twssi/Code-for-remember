@@ -49,6 +49,8 @@ static cx_float_t 	_voltage_Level_impulse_plus  	= 0;
 static cx_float_t 	_voltage_Level_impulse_minus  	= 0;
 static cx_float_t 	_voltage_Level_rx_current		= 0;
 
+
+static cx_uint_t	_debug_measured_rx_current 			= 0u;
 //-----------------------------------------------------------------------	
 static cx_uint16_t _ADC_ValueTab[ADC_CHANNEL] 		= {0,};
 
@@ -422,7 +424,7 @@ void put_current_value(void) // dma �����Ҷ����� ȣ��
 		_flag_measure_current = CX_FALSE; //clear flag 
        
 		//----------------------------------------------------------------------- 
-		for(j= 5; j<SAMPLING_COUNT_RX_CURRENT; j++)  
+		for(j = 5; j<SAMPLING_COUNT_RX_CURRENT; j++)  
 		{
 			if(max <= _array_current_value[j]) 
 			{
@@ -434,16 +436,38 @@ void put_current_value(void) // dma �����Ҷ����� ȣ��
 		if(_count_average_current >= SAMPLING_COUNT_AVERAGE_CURRENT) 
 		{
 			temp_current_value  = _average_max_current_value/SAMPLING_COUNT_AVERAGE_CURRENT;
-			
+			_debug_measured_rx_current = temp_current_value;
 			_voltage_Level_rx_current 	= (cx_float_t)((temp_current_value*3.3)/(4096-1));	//���� ���з���
 			
 			_count_average_current		= 0u;
 			_average_max_current_value 	= 0u;
 
+			if(temp_current_value > 3300) _measured_rx_current = temp_current_value*61/100;
+			else _measured_rx_current = temp_current_value*66/100;
+			
+			/*
+			
+			if(temp_current_value > 2500) _measured_rx_current = temp_current_value*54/100;
+			else _measured_rx_current = temp_current_value*69/100;
+
+			
+			if(temp_current_value > 2500) _measured_rx_current = temp_current_value*78/100;
+			else _measured_rx_current = temp_current_value*94/100;
+
+
+
+			 if(temp_current_value > 1000 && temp_current_value <=2500)_measured_rx_current = temp_current_value*95/100;
+			else if(1000 > temp_current_value ) _measured_rx_current =   temp_current_value*98/100;
 			if(temp_current_value>2500)	_measured_rx_current=temp_current_value*70/100;	
-			else if(1500<temp_current_value && temp_current_value<=2500) _measured_rx_current=temp_current_value*74/100;
-			else if(500<temp_current_value && temp_current_value<=1500) _measured_rx_current=temp_current_value*76/100;
-			else _measured_rx_current=temp_current_value*79/100;	
+			else if(1500<& te > temp_current_value mp_current_value<=2500) _measured_rx_current=temp_current_value*71/100;
+			else if(1200<temp_current_value && temp_current_value<=1500) _measured_rx_current=temp_current_value*72/100;
+			else if(1100<temp_current_value && temp_current_value<=1200) _measured_rx_current=temp_current_value*73/100;
+			else if(1000<temp_current_value && temp_current_value<=1100) _measured_rx_current=temp_current_value*74/100;
+			else if(800<temp_current_value && temp_current_value<=1000) _measured_rx_current=temp_current_value*76/100;
+			else if(600<temp_current_value && temp_current_value<=800) _measured_rx_current=temp_current_value*80/100;
+			//else if(500<temp_current_value && temp_current_value<=1500) _measured_rx_current=temp_current_value*80/100;
+			else _measured_rx_current=temp_current_value*81/100;	
+			*/
 		}
 		else 
 		{

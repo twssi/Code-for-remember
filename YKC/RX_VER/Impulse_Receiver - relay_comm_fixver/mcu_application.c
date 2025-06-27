@@ -104,6 +104,7 @@ static cx_uint_t _pre_hotstandby 			= 0u;
 static cx_uint_t _check_rising_edge_tim3	= 0u;
 
 cx_uint_t rx_frequency;
+cx_uint_t de_rx_frequency;
 //===========================================================================
 // reg -> bfifo -> bsb -> stream
 //debug
@@ -470,9 +471,10 @@ void calculate_inputcapture_TIM3 (void)
 	else if(_freq_state == DONE)
 	{
 		if(_freq_count >= 100)
-		{
+		{ 
 			gu32_T1H 		= _freq_count;
 			gu32_Freq 		= (uint32_t)(F_CLK/gu32_T1H);
+			de_rx_frequency = gu32_Freq;
 			_freq_state 	= IDLE;
 			_freq_count		= 0;
 
@@ -639,6 +641,7 @@ uint8_t fcs(uint8_t* data, cx_uint16_t len)
 
 	return ch;
 }
+# if 0
 uint8_t fcs_rx(uint8_t* data, cx_uint16_t len)
 {
 	cx_uint16_t i;
@@ -655,6 +658,41 @@ uint8_t fcs_rx(uint8_t* data, cx_uint16_t len)
 
 	return ch;
 }
+#endif 
+
+uint8_t fcs_rx(uint8_t* data, uint8_t ID,cx_uint16_t len)
+{
+	cx_uint16_t i;
+	cx_uint8_t ch;
+	cx_uint8_t p_val;
+	cx_uint8_t ID_val;
+
+	ch = 0;
+
+	ID_val = ID;
+	if(ID_val >= 197)									p_val = 0x19;
+	else if(ID_val >= 190 && ID_val < 195) 			 	p_val = 0x12;
+	else if(ID_val >= 0XB4 && ID_val <= 0xB9) 			p_val = 0x19; //180~185
+	else if(ID_val >= 0XB0 && ID_val <= 0XB3) 			p_val = 0x19; //176~179
+	else if(ID_val >= 0xAA && ID_val <= 0XAF)			p_val = 0x12; //170~175
+	else if(ID_val >  0x99 && ID_val <= 0xA9) 			p_val = 0x19; //154~ 169
+	else p_val = 0x20;
+
+
+	for (i = 0; i < len; i++)
+	{
+
+		ch += data[i];
+
+	}
+
+		ch += p_val;
+
+
+
+	return ch;
+}
+
 
 uint8_t fcs_conv(uint8_t data)
 {
@@ -909,11 +947,11 @@ void check_state_Transmitter(void)
 	TR1_state = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_6);
 	TR2_state = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8);
 
-	if(TR1_state == LOW && TR2_state == LOW && TR1_active == HIGH && TR2_active == LOW) _transmit_state_data = 0x30;
-	else if(TR1_state == LOW && TR2_state == LOW && TR1_active == LOW && TR2_active == HIGH) _transmit_state_data = 0x31;
-	else if(TR1_state == LOW && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x32;
-	else if(TR1_state == HIGH && TR2_state == LOW && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x33;
-	else if(TR1_state == HIGH && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x34;
+	if(TR1_state == LOW && TR2_state == LOW && TR1_active == HIGH && TR2_active == LOW) _transmit_state_data = 0x00;
+	else if(TR1_state == LOW && TR2_state == LOW && TR1_active == LOW && TR2_active == HIGH) _transmit_state_data = 0x01;
+	else if(TR1_state == LOW && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x02;
+	else if(TR1_state == HIGH && TR2_state == LOW && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x03;
+	else if(TR1_state == HIGH && TR2_state == HIGH && TR1_active == HIGH && TR2_active == HIGH) _transmit_state_data = 0x04;
 	
 	if(_TX1_rx_timeout_count > 5)
 	{
@@ -925,11 +963,19 @@ void check_state_Transmitter(void)
 	if(_TX2_rx_timeout_count > 5)
 	{
 		memset(Trans2_rx_data,0x00,18);
-		_TX1_rx_timeout_count = 5;
+		_TX2_rx_timeout_count = 5;
 	}
 
 
 	_flag_trans_state =CX_FALSE;
+}
+
+void put_data(cx_byte_t *str, cx_uint16_t len) {
+
+	cx_uint16_t i;
+	for(i=0;i<len;i++) {
+		dbg_put_char(str[i]);
+	}
 }
 
 static void transmit (void)
@@ -954,22 +1000,16 @@ static void transmit (void)
 	cx_uint8_t fcs_value;
 	cx_uint_t size;
 	cx_uint8_t relay_data;
-	
+	cx_uint8_t ID_VAL;
 	static cx_uint_t _count_relay_vol_off = 0;
 
 	uint8_t local_data_copy[18];  // 로컬 복사본 생성
 
 	memset(local_data_copy, 0x30, sizeof(local_data_copy)); 
 
-	if(0x30 == _transmit_state_data || 0x32 == _transmit_state_data) memcpy(local_data_copy, Trans1_rx_data, 18);
-	else if(0x31 == _transmit_state_data || 0x33 == _transmit_state_data) memcpy(local_data_copy, Trans2_rx_data, 18);
-	else if(0x34 == _transmit_state_data) memset(local_data_copy, 0x30, 18);
-
-	_DG_tx_buffer[3] = _transmit_state_data;
-
-	//memset(Trans1_rx_data, 0x30, 18);  // 원본 초기화는 여기서!
-	//memset(Trans2_rx_data, 0x30, 18);  
-
+	if(0x00 == _transmit_state_data || 0x02 == _transmit_state_data) memcpy(local_data_copy, Trans1_rx_data, 18);
+	else if(0x01 == _transmit_state_data || 0x03 == _transmit_state_data) memcpy(local_data_copy, Trans2_rx_data, 18);
+	else if(0x04 == _transmit_state_data) memset(local_data_copy, 0x30, 18);
 
 	temp_ReadID1 = GPIO_ReadInputData(GPIOE);
 	temp_ReadID1 = ~(temp_ReadID1) & 0x3C;
@@ -979,23 +1019,26 @@ static void transmit (void)
 	temp_ReadID2 = ~(temp_ReadID2) & 0x000F;
 	rotary_sw_2 = reverse4((temp_ReadID2 >> 0) & 0x0F);
 
+	ID_VAL = (rotary_sw_1<<4)| rotary_sw_2;
+
 
 	impulse_voltage_plus  = get_imnpulse_voltage_plus_value() / 10;
 	impulse_voltage_minus = get_imnpulse_voltage_minus_value() / 10;
 	relay_voltage_v1      = get_relay_voltage_v1_value() / 10;
 	relay_voltage_v2      = get_relay_voltage_v2_value() / 10;
 	rx_current            = get_rx_current_value() / 10;
-	rx_frequency          =_freq_data;//(cx_uint_t)(get_rx_3hz_frequency_value() * 100);
+	rx_frequency          = _freq_data;//(cx_uint_t)(get_rx_3hz_frequency_value() * 100);
 
 
 
 	_DG_tx_buffer[0] = 0x02;
 	_DG_tx_buffer[1] = fcs_conv(rotary_sw_1);
 	_DG_tx_buffer[2] = fcs_conv(rotary_sw_2);
-
+	_DG_tx_buffer[3] ='0'+ (_transmit_state_data & 0x0F);
 	
 	memcpy(&_DG_tx_buffer[4], local_data_copy, 18);  // 복사본을 사용
-
+	
+	
 	for (i = 0; i < 3; i++)
 		_DG_tx_buffer[22 + i] = (impulse_voltage_plus / POW(10, 2 - i)) % 10 + '0';
 
@@ -1016,15 +1059,15 @@ static void transmit (void)
 
 
 	_DG_tx_buffer[40] = transmit_relay_input_value;
-	fcs_value = fcs_rx(&_DG_tx_buffer[1], 40);
+	fcs_value = fcs_rx(&_DG_tx_buffer[1],ID_VAL, 40);
 	_DG_tx_buffer[41] = fcs_conv(fcs_value >> 4);
 	_DG_tx_buffer[42] = fcs_conv(fcs_value & 0x0F);
 	_DG_tx_buffer[43] = 0x03;
 	_DG_tx_buffer[44] = 0x0D;
 	_DG_tx_buffer[45] = 0x0A;
 
-	put_str(_DG_tx_buffer);  // 실제 송신
-
+	//put_str(_DG_tx_buffer);  // 실제 송신
+	put_data(_DG_tx_buffer, 46);  // 실제 송신
 	_timer_count_transmit = CX_FALSE;
 	memset(&_DG_tx_buffer[4], 0x30, 18);  // 다음 출력 초기화
 	_flag_transmit = CX_FALSE;
@@ -1103,8 +1146,8 @@ static void control_watch (void)
 	
 	
 
-	//계전기 여자되는 범위, V1전압 25/V2전압 35 이상
-	if( (get_relay_voltage_V1 >= 250) && (get_relay_voltage_V2 >= 350) )	
+	//계전기 여자되는 범위, V1전압 20/V2전압 30 이상
+	if( (get_relay_voltage_V1 >= 210) && (get_relay_voltage_V2 >= 300) )	
 	{
 		relay_excitaion_condition = CX_TRUE;
 	}	
@@ -1119,7 +1162,7 @@ static void control_watch (void)
 	
 	
 	//-----------------------------------------------------------------------
-	//부정낙하.. 임펄스 전압 있는데 궤도계전기가 여자인 상태
+	//부정낙하: 임펄스 전압 있는데 궤도계전기가 낙하인 상태
 	if( (relay_excitaion_condition == CX_TRUE) && (_relay_input_value == CX_FALSE) )
 	{
 		if (_fail_count_false_drop >= fail_check_chattering_count)
@@ -1139,7 +1182,7 @@ static void control_watch (void)
 	}	
 	
 	//-----------------------------------------------------------------------
-	//부정여자.. 임펄스 전압 없는데 궤도계전기가 여자인 상태
+	//부정여자: 임펄스 전압 없는데 궤도계전기가 여자인 상태
 	if( (relay_drop_condition == CX_TRUE) && (_relay_input_value == CX_TRUE) )
 	{
 		if (_fail_count_false_excitation >= fail_check_chattering_count)
@@ -1178,7 +1221,7 @@ static void control_watch (void)
 static void control_input(void)
 {
 	//-----------------------------------------------------------------------
-	if (CX_FALSE==_flag_control_input)	//50ms �ֱ�
+	if (CX_FALSE==_flag_control_input)	//each 10ms check. 
 	{
 		return;
 	}
@@ -1187,7 +1230,7 @@ static void control_input(void)
 	
 	cx_uint_t input_trans_tab;
 
-	cx_uint_t input_chattering_count 	= 4u;
+	cx_uint_t input_chattering_count 	= 5u;
 	static cx_uint_t _relay_input_count = 0u;
 	static cx_uint_t _count_relay_vol_off = 0;
 
@@ -1223,19 +1266,19 @@ static void control_input(void)
 			if(get_relay_voltage_V1 > 250 && get_relay_voltage_V2 > 350)	
 			{
 				_count_relay_vol_off++;
-				if(_count_relay_vol_off>=200)
+				if(_count_relay_vol_off>=300) //부정낙하 시간 조정
 				{
 					transmit_relay_input_value = 0x32;
 					_count_relay_vol_off = 300;
 				}
-				else
+				else // checking time should be 200ms //else if(_count_relay_vol_off > 20)
 				{
 					transmit_relay_input_value = 0x30;
 				}
 			}
 			else
 			{
-				transmit_relay_input_value = 0x30;
+				transmit_relay_input_value = 0x34;
 				_count_relay_vol_off=0;
 			}
 			if(0x34 == _transmit_state_data)
@@ -1949,7 +1992,7 @@ void application_run (void)
 	
 	memset(Trans1_rx_data, 0x30, 18);
 	memset(Trans2_rx_data, 0x30, 18);
-
+        
 	while (1)
   	{
     	t2 = _operating_time_second;

@@ -38,6 +38,6 @@ MCU_API void OnUart4_Recv (cx_uint8_t ch);
 MCU_API void check_state_Transmitter(void);
 
 MCU_API void get_impulse_voltage_irq_handler (void);
-
+//MCU_API void put_data(cx_byte_t *str, cx_uint16_t len);
 
 #endif

@@ -40,7 +40,7 @@ GPIO_ALIAS_API void      GPIO_O_COWORKER_DO3     	(cx_uint_t v) { GPIO_WriteBit(
 GPIO_ALIAS_API void      GPIO_O_COWORKER_DO4     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_15 , (BitAction)v);  } 
 GPIO_ALIAS_API void      GPIO_O_COWORKER_DO5     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_14 , (BitAction)v);  } 
 GPIO_ALIAS_API void      GPIO_O_COWORKER_DO6     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_13 , (BitAction)v);  } 
-GPIO_ALIAS_API void      GPIO_O_COWORKER_DO7     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_12 , (BitAction)v);  } 
+//GPIO_ALIAS_API void      GPIO_O_COWORKER_DO7     	(cx_uint_t v) { GPIO_WriteBit(GPIOB, GPIO_Pin_12 , (BitAction)v);  } 
 
 //===========================================================================
 GPIO_ALIAS_API cx_uint_t GPIO_I_LOCATION_INPUT 		(void)		{ return GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_5  ); }
