@@ -37,31 +37,13 @@
 #include "stm32f1xx_ll_gpio.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "calc.h"
+
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
-
-typedef struct {
-    GPIO_TypeDef * const port;
-    const uint16_t       pin;
-} PinDef;
-
-enum
-{
-	Night =0,
-	Day,
-	Group,
-	G_set,
-	R_set,
-	Unguide,
-	Shunting,
-	Signalling_Block,
-	Pin_Count
-};
-
 
 static const PinDef kpins[Pin_Count] = {
 		[Night] = {Night_GPIO_Port,Night_Pin},
@@ -75,58 +57,16 @@ static const PinDef kpins[Pin_Count] = {
 
 };
 
-typedef enum {
-  MODE_OWNER_SWITCH = 0,   // 스위치가 세운 모드
-  MODE_OWNER_AUTO   = 1,   // 고장으로 인한 자동절체가 세운 모드
-} ModeOwner_t;
-
 static ModeOwner_t mode_owner = MODE_OWNER_SWITCH;
-static bool        fault_latched = false;
 static uint32_t    hold_until_ms = 0;           // 자동절체 후 스위치 무시 기간
-#define HOLD_MS_AFTER_FAILOVER  5000
+
+// CDS 변경으로 인한 PWM 변경 시 고장 오검출 억제 기간 (flag_change_CDS_Val 사용)
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define RUN_LED_TIMEOUT_MS  900u
-#define RUN_PWM_TIMEOUT_MS  100u
-#define FAIL_TIMEOUT_MS     1000u
-#define DATA_FRAME_SIZE		  0x17
-#define STARTUP_BOOT_TIMEOUT_MS 3000u
 
-#define PWM_full_duty_cycle  250u  // 100% duty for 250 max
-#define PWM_seventy_duty_cycle  175u  // 70% duty for 250 max
-#define PWM_sixty_duty_cycle  150u  // 60% duty for 250 max
-#define PWM_half_duty_cycle  125u  // 50% duty for 250 max
-#define PWM_fourty_duty_cycle  100u  // 40% duty for 250 max
-#define PWM_zero_duty_cycle  0u    // 0% duty for 250 max
-
-
-#define MV_ASSERT_MS   100u  
-#define MV_RELEASE_MS  900u   // HIGH로 '해제'할 최소 지속시간
-#define MV_RELEASEMAX_MS  1000u
-#define IGNORE_HIGH_MS  220u  // 190ms보다 살짝 크게
-
-
-static uint16_t mv_low_ms = 0;     // 연속 LOW 누적(ms)
-static uint16_t mv_high_ms = 0;    // 연속 HIGH 누적(ms)
-static uint8_t  mv_low_qualified = 0;   // 1=LOW로 인정됨(필터 후)
-static uint8_t  mv_low_prev = 0;        // 에지 검출용
-
-
-typedef enum { PO_IDLE=0, PO_ARMED, PO_ACTIVE } PoState_t;
-
-// === 창 길이 선택 매크로 ============================================
-// 250us 샘플링 주기 고정 가정
-#define SAMPLE_PERIOD_US        250
-
-// 한 개만 켜두세요.
-#define AVERAGE_WINDOW_MS    100   // 100ms 창
-//#define AVERAGE_WINDOW_MS       500   // 500ms 창 (기본)
-
-// 창당 샘플 개수 = (창 길이 / 250us)
-#define SAMPLES_PER_WINDOW  ((AVERAGE_WINDOW_MS * 1000) / SAMPLE_PERIOD_US)
 
 /* USER CODE END PD */
 
@@ -147,47 +87,51 @@ TIM_HandleTypeDef htim5;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-uint8_t Y_Pin_set			= 0;
-uint8_t Y1_Pin_set			= 0;
-static uint8_t transmit_buf[17]={0,};
+
+///////////////////////UART 송수신////////////////////////
+
+static uint8_t COM1_data = 0; // UART1  1바이트 수신 데이터
+
+static uint8_t transmit_buf[23]={0,};
+static uint8_t receive_buf[8]={0,};
 
 
+uint8_t mode_setup;
 uint8_t LED_setup;
 uint8_t card_setup;
-uint8_t LED_status;
+uint8_t LED_status1;
+uint8_t LED_status2;
+uint8_t day_night_status;
+uint8_t LDE_card_status;
+uint8_t Y_Pin_set			= 0;
+uint8_t Y1_Pin_set			= 0;
+//////////////////////////////////////////////////////////
+
+// ===== Fault Latch (고장 의심 상태 유지) =====
+static uint8_t  fault_latch_1 = 0;         // 1계 latch
+static uint8_t  fault_latch_2 = 0;         // 2계 latch
+static uint32_t fault_ref_1   = 0;         // 1계 동결 기준(peak)
+static uint32_t fault_ref_2   = 0;         // 2계 동결 기준(peak)
+
+bool  flag_change_CDS_Val   	  = FALSE;
 
 
-static uint16_t watchdog_100ms_counter = 0;
-static uint8_t  external_watchdog_enabled = TRUE;   // 필요하면 나중에 0으로 꺼도 됨
-static uint8_t  external_watchdog_state   = 0;   
-
-static uint16_t count_DI_100ms = 0;
-
-
-static unsigned char  flag_RUNLED_ON   	  			= FALSE;
-static unsigned char  flag_check_fault     			= FALSE;
-static unsigned char  flag_transmit	   	  			= FALSE;
-static unsigned char  flag_check_output	  			= FALSE;
-static unsigned char  flag_Watchdog_start			= FALSE;
-static unsigned char  flag_Fail	          			= FALSE;
-static unsigned char  flag_check_input	   	 		= FALSE;
-static unsigned char  flag_startup_boot   			= FALSE;
-static unsigned char  flag_wating_100ms	   			= FALSE;
-
-static unsigned char  flag_measure_temp				= FALSE;
-static unsigned char  flag_measure_CDS				= FALSE;
-static unsigned char  flag_measure_current			= FALSE;
-
-static unsigned char  flag_Mainvolt_detected		= FALSE;
+bool  flag_check_fault     			= FALSE;
+bool  flag_transmit	   	  			= FALSE;
+bool  flag_check_input	   	 		= FALSE;
+bool  flag_change_Temp  	      = FALSE;
 
 
-static uint16_t count_250us = 0;
+bool  flag_Mainvolt_detected		= FALSE;
+bool  flag_LED1_fail            = FALSE;
+bool  flag_LED2_fail            = FALSE;
+
 
 static uint16_t count_5ms  = 0;
 static uint16_t count_10ms = 0;
-static uint16_t count_20ms = 0;
-static uint16_t count_30ms = 0;
-static uint16_t count_40ms = 0;
+//static uint16_t count_20ms = 0;
+//static uint16_t count_30ms = 0;
+//static uint16_t count_40ms = 0;
 static uint16_t count_50ms = 0;
 
 static uint16_t count_100ms = 0;
@@ -198,95 +142,52 @@ static uint16_t count_500ms = 0;
 
 static uint16_t count_1000ms = 0;
 static uint16_t count_1600ms = 0;
+static uint16_t count_2000ms = 0;
 static uint16_t count_3000ms = 0;
-static uint16_t count_fail   = 0;
 
-static uint16_t DI_countHIGH_190ms = 0;
+static uint16_t receive_count = 0;
 
+static uint16_t DI_countHIGH_190ms  = 0;
+static uint16_t DI_countLOW_10ms    = 0;
 
 static uint16_t count_TX_timeout = 0;
 static uint16_t count_RX_timeout = 0;
 
-
-static uint8_t Switch_val		    = 0;
-
+static uint16_t count_DI_100ms = 0;
 
 static uint8_t LED1_failcount = 0;
 static uint8_t LED2_failcount = 0;
 
+// 1계, 2계 채널 전류 피크 기준값 (30% 드롭 감지용)
+static uint32_t peak_first  = 0;
+static uint32_t peak_second = 0;
+
+
+static uint8_t Switch_val		= 0;
+
+
+// 1) 수동 절체 이벤트(1회성)
+static volatile uint8_t g_manual_switchover_event = FALSE; // 0/1
+// 2) 고장 절체 래치(지속)
+static volatile uint8_t g_autofault_latched = FALSE;       // 0/1 (1이면 계속 2 전송)
+//static uint32_t g_manual_event_until_ms = 0;
+// static 변수를 사용하여 이전 모드 상태를 유지합니다.
+static RunMode_t prev_run_mode = MODE_FIRST_ACTIVE;
 
 
 
-uint8_t test1 = 0;
-uint8_t test2 = 0;
-uint8_t test3 = 0;
-uint8_t test4 = 0;
-uint8_t test5 = 0;
-uint8_t test6 = 0;
-uint8_t test7 = 0;
-uint8_t test8 = 0;
+bool flag_override_pwm        = FALSE;
+bool flag_system_stabilizing  = FALSE; // 통합 안정화 상태 플래그
+
+uint32_t stability_start_ms = 0;      // 안정화 시작 시점 기록
+uint16_t last_DC_Val = 0;             // 이전 전압 비교용
 
 static RunMode_t      	run_mode;
-static OutputResult_t	set_pinup;
-///////////////////////ADC 변수////////////////////////
-//New ADC
-#define SAMPLING_COUNT_AC_VOLTAGE 167u	// AC 전압 1차 샘플링 회수 (1ms * 167 = 167ms)
-#define MEASURED_AC_VOLTAGE 20u			// AC 전압 2차 샘플링 회수 (167ms * 20 = 3340ms)
-#define MAX_CUR_ADC_CNT		50			// AC 전류 샘플링 회수 (1ms * 50 = 50ms)
-#define SEQ_FAIL_MAX_CNT	5			// 시퀀스 에러 최대 횟수 (1초주기 체크)
+static OutputResult_t	  set_pinup;
 
 
-#define THRESHOLD_FIRST_MIN   250  // ADC 값 일단 1,2계 동일 ADC 값 그대로 가져오기 (테스트용)
-#define THRESHOLD_SECOND_MIN  250  // 필요하면 값 다르게 둘 수도 있음
-
-// ADC 채널 정의 (V: 전압, C: 전류)
-// ADC DMA 버퍼 인덱스와 매핑됩니다.
-#define ADC_CH_C_IDX 0 // ADC_CHANNEL_0 (기존 전압 채널2)
-#define ADC_CH_TEMP_IDX 1 // ADC_CHANNEL_2
-#define ADC_CH_CDS_IDX 2 // ADC_CHANNEL_1
-#define ADC_CH_DC_IDX 3 // ADC_CHANNEL_3
-//#define ADC_CH_IDX 4 // ADC_CHANNEL_4 (기존 전류 채널3)
-//#define ADC_CH_IDX 5 // ADC_CHANNEL_5
-//#define ADC_CH_IDX 6 // ADC_CHANNEL_6
-//#define ADC_CH_IDX 7 // ADC_CHANNEL_7
-
-#define NUM_PWM_CURRENT_CHANNELS      1
-#define NUM_DC_VOLATAGE_CHANNELS      1
-#define NUM_CDS_CHANNELS              1
-#define NUM_TEMP_CHANNELS             1
-#define NUM_ADC_CHANNELS (NUM_PWM_CURRENT_CHANNELS + NUM_DC_VOLATAGE_CHANNELS + NUM_CDS_CHANNELS + NUM_TEMP_CHANNELS)
-
-uint64_t measured_PWM_Cur  	= 0;
-int16_t measured_TEMP_Val  = 0;
-uint16_t measured_CDS_Val	= 0;
-uint16_t measured_DC_Val	= 0;
-
-//uint16_t adc_dma_values[NUM_ADC_CHANNELS];
-
-volatile uint32_t adc_dma_values[NUM_ADC_CHANNELS];
-
-
-static uint16_t	_count_sampling_tx_current  = 0u;
-static uint32_t	_average_max_sampling   	= 0u;
-static uint32_t	_average_max_sampling_cur  	= 0u;
-static float 	_voltage_Level_tx_current		= 0;
-
-
-
-static uint16_t count_measure_temper		= 0u;
-static uint32_t	temper_measure_sum  		= 0u;
-static uint32_t	_averageTemp_max_sampling   = 0u;
-static float 	_voltage_Level_temp			= 0;
-
-static uint16_t count_measure_CDS			= 0u;
-static uint32_t	CDS_measure_sum  			= 0u;
-static uint32_t	_averageCds_max_sampling   	= 0u;
-static float 	_voltage_Level_CDS			= 0;
-
-
-uint32_t converted_value_cds;
-uint32_t converted_value_temper;
-uint32_t converted_value_tx_currnet;
+static uint8_t current_state = CDS_DAY;   // 확정된 상태
+static uint8_t candidate_state = CDS_DAY; // 현재 후보 상태
 
 //--------------fnd ǥ�� ���� ����-----------------------------------------
 uint8_t _fnd0[5];
@@ -318,11 +219,6 @@ uint8_t _fnd1[5];
 #define FND_CHAR_V     0x3E
 
 
-static unsigned char _flag_make_display_data = FALSE;
-///////////////////////UART 수신////////////////////////
-static uint8_t COM1_data = 0; // UART1  1바이트 수신 데이터
-
-
 
 /* USER CODE END PV */
 
@@ -338,10 +234,6 @@ static void MX_ADC1_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
-static void GPIO_O_EXTERNAL_WATCHDOG_CLOCK(uint8_t v);
-static void external_watchdog_clock_output_irq_handler (void);
-static void watchdog_run_irq_handler(void);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -353,66 +245,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 	if(htim->Instance == TIM2)
 	{
-		count_5ms++;
-		count_10ms++;
-		count_50ms++;
-		count_100ms++;
-		count_500ms++;
-		count_1000ms++;
-		count_1600ms++;
-		count_3000ms++;
-		count_TX_timeout++;
 
-		if(count_5ms >= 5)
-		{
-
-		  count_5ms = 0;
-		}
-
-		if(count_10ms >= 10)
-		{
-
-			count_10ms = 0;
-		}
-
-
-		if(count_50ms >=50)
-		{
-			flag_check_fault = TRUE;
-			count_50ms = 0;
-		}
-
-		if(count_100ms >= 100)
-		{
-			flag_measure_CDS = TRUE;
-			flag_measure_temp = TRUE;
-		  flag_check_input = TRUE;
-		  count_100ms = 0;
-		}
-		if(count_500ms >= 500)
-		{
-
-			_flag_make_display_data = TRUE;
-			count_500ms = 0;
-		}
-		if(count_1000ms >= 1000)
-		{
-
-			flag_transmit = TRUE;
-			count_1000ms = 0;
-		}
-		if(count_1600ms >= 1600)
-		{
-
-		}
-
-		if(count_3000ms >= 3000)
-		{
-
-
-			count_3000ms = 0;
-		}
-		//watchdog_run_irq_handler();
+    timer_counter_run();
+    watchdog_run_irq_handler();
+    read_mainvolt();
+    mv_qualifier_tick();
+    
+	
 	}
 
 	if(htim->Instance == TIM3)
@@ -423,27 +262,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	if(htim->Instance == TIM4)
 	{
 		output_fnd_display();
-
 	}
 
 	if(htim->Instance == TIM5)
 	{
-		count_250us++;
-		if(count_250us>=5)
-		{
-			flag_measure_current = TRUE;
-			count_250us=0;
-		}
-	}
-}
-
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
-{
-    if (hadc == &hadc1)
-    {
-
-    	//PWM_current_accuarte();
-	}
+    
+    put_PWM_current_Value();
+  }
+ 
 }
 
 #if 1
@@ -451,8 +277,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == USART1)
 	{
-
+    OnUart_Recv(COM1_data);
+    HAL_UART_Receive_IT(&huart1, &COM1_data, 1);
 	}
+
 }
 
 
@@ -464,14 +292,6 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 #endif
-
-void HAL_SYSTICK_Callback(void)
-{
-	flag_Mainvolt_detected = TRUE;
-    // 1) 메인전압 시간 필터 갱신(매 1ms)
-
-}
-
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -498,75 +318,58 @@ Switchstate_t Get_switchState(uint8_t raw_bit)
 // 하드웨어 반영 + 논리결과를 반환
 static OutputResult_t ApplyOutputsFromSwitch(Switchstate_t *s)
 {
-    OutputResult_t res;
-    res.y_on        = 0u;
-    res.applied_pwm = 0u;
+    OutputResult_t res = {0};   
 
-    if (s->Night_pin_set == LOW)
+    // Night/Day
+    res.night_active = (s->Night_pin_set == LOW) ? HIGH : LOW;
+    res.day_active   = (s->Day_pin_set   == LOW) ? HIGH : LOW;
+
+    // Group/Insert
+    if (s->Group_pin_set == LOW) 
     {
-      res.night_active = HIGH;
-    }
-    else if (s -> Night_pin_set == HIGH)
+        res.Group_active  = HIGH;
+        res.Insert_active = LOW;
+    } 
+    else 
     {
-      res.night_active = LOW;
-    }
-  
-      
-    if (s->Day_pin_set == LOW)
-    {
-      res.day_active = HIGH;
-    }
-    else if(s ->Day_pin_set == HIGH)
-    {
-      res.day_active = LOW;
+        res.Group_active  = LOW;
+        res.Insert_active = HIGH;
     }
 
-    if (s->Group_pin_set  == LOW)
+    // (G/R/Y/Y1) 
+    if (s->G_Pin_set == LOW && s->R_Pin_set == LOW) 
     {
-      res.Group_active = HIGH;  // 그룹 모드
-      res.Insert_active = LOW;
+        res.y_on     = HIGH;
+        res.y1_on    = LOW;
+        res.G_active = LOW;
+        res.R_active = LOW;   // Y일 때 R_active를 명시적으로 LOW   
     }
-    else if (s->Group_pin_set  == HIGH)
+    else if (s->G_Pin_set == HIGH && s->R_Pin_set == HIGH)
     {
-      res.Insert_active = HIGH; // 삽입 모드
-      res.Group_active = LOW;
+        res.y_on     = LOW;
+        res.y1_on    = HIGH;
+        res.G_active = LOW;
+        res.R_active = LOW;   // Y1일 때도 명시적으로 LOW
     }
-
-
-   
-    if (s->G_Pin_set == LOW && s->R_Pin_set == LOW)
+    else if (s->G_Pin_set == LOW && s->R_Pin_set == HIGH) 
     {
-        res.y_on = HIGH;
-        Y_Pin_set = 1u;
+        res.y_on     = LOW;
+        res.y1_on    = LOW;
+        res.G_active = HIGH;
+        res.R_active = LOW;
     }
-    else if(s->G_Pin_set == HIGH && s->R_Pin_set == HIGH)
-    {
-    	res.y1_on = HIGH;
-    	Y1_Pin_set = HIGH;
+    else 
+    { // (s->G_Pin_set == HIGH && s->R_Pin_set == LOW)
+        res.y_on     = LOW;
+        res.y1_on    = LOW;
+        res.G_active = LOW;
+        res.R_active = HIGH;
     }
 
-    if (s->G_Pin_set == LOW && s->R_Pin_set == HIGH)
-    {
-      res.G_active = HIGH;
-      res.R_active = LOW;
-    }
-    else if (s->R_Pin_set == LOW && s->G_Pin_set == HIGH)
-    {
-    	res.R_active = HIGH;
-    	res.G_active = LOW;
-    }
- 
-
-    if (s->Unguide_pin_set == LOW) res.unguide_active = HIGH; 		// 무유도(Unguide) 모드
-    else if(s->Unguide_pin_set == HIGH)  res.unguide_active = LOW;
-
-    if (s->Signalling_pin_set == LOW) res.signalling_active = HIGH; // 폐색(Signalling) 모드
-    else if (s->Signalling_pin_set == HIGH) res.signalling_active = LOW;
-    
-    if (s->Shunting_pin_set == LOW) res.shunting_active = HIGH;
-    else if(s->Shunting_pin_set == HIGH) res.shunting_active = LOW;
-
-
+    // Modes
+    res.unguide_active    = (s->Unguide_pin_set    == LOW) ? HIGH : LOW;
+    res.signalling_active = (s->Signalling_pin_set == LOW) ? HIGH : LOW;
+    res.shunting_active   = (s->Shunting_pin_set   == LOW) ? HIGH : LOW;
 
     return res;
 }
@@ -574,29 +377,24 @@ static OutputResult_t ApplyOutputsFromSwitch(Switchstate_t *s)
 
 void app_setup(void)
 {
-
+  
+	HAL_TIM_Base_Start_IT(&htim5);
 	HAL_TIM_Base_Start_IT(&htim2);
 	HAL_TIM_Base_Start_IT(&htim3);
 	HAL_TIM_Base_Start_IT(&htim4);
-	HAL_TIM_Base_Start_IT(&htim5);
+ 
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_dma_values, NUM_ADC_CHANNELS);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_dma_values, NUM_ADC_CHANNELS);
 
+  __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
+  HAL_UART_Receive_IT(&huart1, &COM1_data, 1);
+  HAL_UART_Transmit_IT(&huart1, transmit_buf, 23);
 
+	
 
-    __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
-    HAL_UART_Receive_IT(&huart1, &COM1_data, 1);
-    HAL_UART_Transmit_IT(&huart1, transmit_buf, 17);
-
-
-
-	flag_RUNLED_ON = TRUE;
-
-	HAL_GPIO_WritePin(CUR_CON0_GPIO_Port, CUR_CON0_Pin, GPIO_PIN_RESET);
-
-
-	uint8_t raw_bits = 0; // 1) 스위치 전체 비트 읽기
+  uint8_t raw_bits = 0; // 1) 스위치 전체 비트 읽기
 	for (uint8_t i = 0; i < Pin_Count; i++)
 	{
 		if (HAL_GPIO_ReadPin(kpins[i].port, kpins[i].pin) == GPIO_PIN_SET)
@@ -607,32 +405,28 @@ void app_setup(void)
 
 	Switch_val = raw_bits;
 
-	Switchstate_t sw = Get_switchState(Switch_val);// 2) 스위치 상태 구조체로 변환
-	OutputResult_t result = ApplyOutputsFromSwitch(&sw);// 3) 하드웨어/카드 상태 반영
+	Switchstate_t sw = Get_switchState(Switch_val);// 2) 스위치 상태 
+	OutputResult_t result = ApplyOutputsFromSwitch(&sw);// 3) 하드웨어/카드 설정 반영
 	set_pinup = result;
 
-	//test 할때 주석 풀자
-	//if(set_pinup.day_active == HIGH )
-	//{
-	//	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 125);
-	//}
-	//else if (set_pinup.night_active == HIGH ) __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 125);
-   //else __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, PWM_seventy_duty_cycle);
-
-
 	HAL_GPIO_WritePin(MCU_CONTROL_PWR_GPIO_Port, MCU_CONTROL_PWR_Pin, GPIO_PIN_SET); // 3) 전원제어 라인 On
-	HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(Fault_Relay_Control_GPIO_Port, Fault_Relay_Control_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(RUN_LED_GPIO_Port, RUN_LED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(FAULT_LED_GPIO_Port, FAULT_LED_Pin, GPIO_PIN_SET);
 
-	// 4) 1계/2계 LED 처리
+  // 4) 1계/2계 LED 처리
 	if (HAL_GPIO_ReadPin(LED1_INPUT_GPIO_Port, LED1_INPUT_Pin) == GPIO_PIN_SET)
 	{
 		HAL_GPIO_WritePin(First_LED_GPIO_Port, First_LED_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(Second_LED_GPIO_Port, Second_LED_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(FAULT_LED_GPIO_Port,FAULT_LED_Pin,GPIO_PIN_SET);
 	}
 	else if (HAL_GPIO_ReadPin(LED2_INPUT_GPIO_Port, LED2_INPUT_Pin) == GPIO_PIN_SET)
 	{
 		HAL_GPIO_WritePin(First_LED_GPIO_Port, First_LED_Pin, GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(Second_LED_GPIO_Port, Second_LED_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(FAULT_LED_GPIO_Port,FAULT_LED_Pin,GPIO_PIN_RESET);
 	}
   
 }
@@ -641,125 +435,214 @@ void app_setup(void)
 /////////////////////////////////////////////////////////////////////////
 //워치독
 /////////////////////////////////////////////////////////////////////////
-static void GPIO_O_EXTERNAL_WATCHDOG_CLOCK(uint8_t v)
+void watchdog_run_irq_handler(void)
 {
-    HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin, v ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    static uint32_t wd_cnt = 0;
+
+    if (run_mode != MODE_FAULT)
+    {
+        wd_cnt++;
+        if (wd_cnt >= 100) wd_cnt = 0; // 100ms 주기로 반복
+
+        // 0~49ms까지는 HIGH, 50~99ms까지는 LOW (50% 듀티 사이클)
+        if (wd_cnt < 50) 
+        {
+            HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_SET);
+        }
+        else 
+        {
+            HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_RESET);
+        }
+    }
+    else
+    {
+        HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_SET);
+    }
+   
 }
 
-
-static void external_watchdog_clock_output_irq_handler (void)
+///////////////////////////////////////////////////////////////////////////
+//타이머 카운터
+///////////////////////////////////////////////////////////////////////////
+void timer_counter_run(void)
 {
-	if (external_watchdog_enabled)
-	{
-		external_watchdog_enabled = (0u == external_watchdog_enabled)?1u:0u;
-		GPIO_O_EXTERNAL_WATCHDOG_CLOCK(external_watchdog_enabled);
-	}
+  	count_5ms++;
+		count_10ms++;
+		count_50ms++;
+		count_100ms++;
+    count_200ms++;
+    count_300ms++;
+    count_400ms++;
+		count_500ms++;
+		count_1000ms++;
+		count_1600ms++;
+		count_2000ms++;
+		count_3000ms++;
+    count_RX_timeout++;
+		count_TX_timeout++;
+    receive_count++;
 
-}
+		if(count_5ms >= 5)
+		{
 
-static void watchdog_run_irq_handler(void)
-{
-	if(run_mode !=MODE_FAULT)
-	{
-		 watchdog_100ms_counter++;
-
-		if (watchdog_100ms_counter >= 100)
-		{     // 100ms마다
-			external_watchdog_clock_output_irq_handler();
-			watchdog_100ms_counter = 0;
+		  count_5ms = 0;
 		}
 
-	}
+		if(count_10ms >= 10)
+		{
+
+			count_10ms = 0;
+		}
+
+
+		if(count_50ms >=50)
+		{
+			flag_check_fault = TRUE;
+			count_50ms = 0;
+		}
+
+		if(count_100ms >= 100)
+		{  
+      put_CDS_value();
+      put_Temp_Value();
+      put_DC_value();
+		  count_100ms = 0;
+		}
+		if(count_500ms >= 500)
+		{
+
+			make_fnd_data();
+			count_500ms = 0;
+		}
+		if(count_1000ms >= 1000)
+		{
+
+			flag_transmit     = TRUE;
+      flag_check_input  = TRUE; //PWM 전류값 측정 트리거
+      
+			count_1000ms = 0;
+		}
+		if(count_1600ms >= 1600)
+		{
+      
+    }
+		if(count_2000ms >= 2000)
+    {
+      count_2000ms = 0;
+    }
+		if(count_3000ms >= 3000)
+		{
+      
+      
+			count_3000ms = 0;
+		}
+		
+    
 
 }
 
+
 /////////////////////////////////////////////////////////////////////////
-//PI, PO 함수
+//전압 입력 감지 함수
 /////////////////////////////////////////////////////////////////////////
 
+void read_mainvolt(void)
+{
+  
+  GPIO_PinState raw = HAL_GPIO_ReadPin(Main_Volt_detecto_GPIO_Port, Main_Volt_detecto_Pin);
+
+  if (raw == GPIO_PIN_SET) // 전압 미검출 (High)
+  {
+
+      DI_countLOW_10ms = 0; // Low 카운트 리셋
+
+      if (DI_countHIGH_190ms < 0xFFFF) DI_countHIGH_190ms++;
+      if (DI_countHIGH_190ms >= IGNORE_HIGH_MS)
+      {
+          flag_Mainvolt_detected = FALSE;
+          
+      }
+  }
+
+  else // 전압 검출 (Low)
+  {
+
+      DI_countHIGH_190ms = 0; // High 카운트 리셋
+
+      if (DI_countLOW_10ms < 0xFFFF) DI_countLOW_10ms++;
+      if (DI_countLOW_10ms >= IGNORE_HIGH_toLOW_MS)
+      {
+          flag_Mainvolt_detected = TRUE;
+         
+      }
+
+  }
+
+}
 
 void mv_qualifier_tick(void)
 {
-    GPIO_PinState raw = HAL_GPIO_ReadPin(Main_Volt_detecto_GPIO_Port, Main_Volt_detecto_Pin);
 
-    if (raw == GPIO_PIN_SET)
+    if (flag_Mainvolt_detected == FALSE)
     {
-        if (DI_countHIGH_190ms < 0xFFFF) DI_countHIGH_190ms++;
+        count_DI_100ms = 0;
 
-        // HIGH가 충분히 길면 해제
-        if (DI_countHIGH_190ms >= IGNORE_HIGH_MS)
-        {
-            HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(CUR_CON0_GPIO_Port, CUR_CON0_Pin, GPIO_PIN_RESET);
-            count_DI_100ms = 0;
-            DI_countHIGH_190ms = IGNORE_HIGH_MS;
-        }
-        return;   // 220ms 미만 HIGH는 완전히 무시
+
+        flag_override_pwm = FALSE;
+
+
+        HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(CUR_CON0_GPIO_Port, CUR_CON0_Pin, GPIO_PIN_RESET);
+        return;
     }
 
-    else if (raw == GPIO_PIN_RESET && flag_Mainvolt_detected == TRUE)
+    else 
     {
-        // LOW 진입: HIGH 카운터는 즉시 0으로
-        DI_countHIGH_190ms = 0;
 
         count_DI_100ms++;
-        if (count_DI_100ms >= MV_ASSERT_MS && count_DI_100ms < MV_RELEASE_MS)
-        {
-            if (set_pinup.Group_active == HIGH)
-            {
-                HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_SET);
-                HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_RESET);
-            }
-            else if (set_pinup.Insert_active == HIGH)
-            {
-                HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_SET);
-                HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_RESET);
-            }
+  
+      // 1) ASSERT (>= 50ms) 
+      if ( count_DI_100ms >= MV_ASSERT_MS)
+      {
 
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 25);
-        }
+        HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+        HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_SET);
+        
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 125);
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 25);
 
-        if (count_DI_100ms >= MV_RELEASE_MS)
-        {
-
-            HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_RESET);
-
-
-            if(set_pinup.day_active == HIGH )__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 125);
-		    else if (set_pinup.night_active == HIGH ) __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, 125);
-            //count_DI_100ms = MV_RELEASE_MS;
-
-        }
-
-        /*test용 주석 이후 주석 삭제.*/
-        if (count_DI_100ms >= MV_RELEASEMAX_MS)
-		{
-            HAL_GPIO_WritePin(CUR_CON1_GPIO_Port, CUR_CON1_Pin, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(CUR_CON2_GPIO_Port, CUR_CON2_Pin, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(CUR_CON0_GPIO_Port, CUR_CON0_Pin, GPIO_PIN_SET);
-			count_DI_100ms = MV_RELEASEMAX_MS;
-		}
-        flag_Mainvolt_detected=FALSE;
+        flag_override_pwm = TRUE;
+        
+      }
+  
+      // 2) RELEASE (>= 900ms)
+      if (count_DI_100ms >= MV_RELEASE_MS)
+      {
+      
+          HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+  
+          flag_override_pwm = FALSE;
+         
+  
+          // 더 이상 증가/오버플로 방지
+          count_DI_100ms = MV_RELEASE_MS + 1;
+      }
     }
 }
-
-
-
 
 /////////////////////////////////////////////////////////////////////////
 //1,2계 절체 함수
 /////////////////////////////////////////////////////////////////////////
 RunMode_t read_setup_switch(void)
 {
+
 	uint8_t sw1_raw = HAL_GPIO_ReadPin(First_sw_in_GPIO_Port, First_sw_in_Pin);
 	uint8_t sw2_raw = HAL_GPIO_ReadPin(Second_sw_in_GPIO_Port, Second_sw_in_Pin);
 
-    if      (sw1_raw==HIGH && sw2_raw==LOW)  	return MODE_FIRST_ACTIVE;
-    else if (sw1_raw==LOW  && sw2_raw==HIGH) 	return MODE_SECOND_ACTIVE;
-    else if (sw1_raw==LOW  && sw2_raw==LOW)  	return MODE_SWITCH_OFF;
-    else                           				return MODE_INVALID;
+  if      (sw1_raw==HIGH && sw2_raw==LOW)  	return MODE_FIRST_ACTIVE;
+  else if (sw1_raw==LOW  && sw2_raw==HIGH) 	return MODE_SECOND_ACTIVE;
+  else if (sw1_raw==LOW  && sw2_raw==LOW)  	return MODE_SWITCH_OFF;
+  else                           				    return MODE_SWITCH_OFF;
 
 }
 
@@ -769,27 +652,36 @@ void control_logic_step(void)
     if ( run_mode == MODE_FAULT)  // 0) FAULT 확인
     {
         run_mode = MODE_FAULT;
-        HAL_GPIO_WritePin(MCU_CONTROL_PWR_GPIO_Port, MCU_CONTROL_PWR_Pin, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(First_LED_GPIO_Port,  First_LED_Pin,  GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(Second_LED_GPIO_Port, Second_LED_Pin, GPIO_PIN_SET);
         return;
     }
-
 
     if (HAL_GetTick() >= hold_until_ms) // 1) 자동절체 직후 HOLD 종료 시 스위치 반영
     {
         RunMode_t req = read_setup_switch();
-
+        
         if (req == MODE_FIRST_ACTIVE || req == MODE_SECOND_ACTIVE)
         {
-            mode_owner = MODE_OWNER_SWITCH;   // 스위치 소유
+          
+          if (mode_owner == MODE_OWNER_SWITCH)
+          {
             if (run_mode != req) run_mode = req;
+            
+          }
+   
         }
         else if (req == MODE_SWITCH_OFF) // 스위치 고장 시 2계 작동
         {
         	run_mode = MODE_SECOND_ACTIVE;
         }
 
+    }
+
+    //모든 모드 변경(자동/수동)을 감지하는 로직
+    if (prev_run_mode != run_mode && mode_owner == MODE_OWNER_SWITCH)
+    {
+        // 1계 -> 2계, 2계 -> 1계 모든 변화를 여기서 캐치
+        g_manual_switchover_event = TRUE;
+        prev_run_mode = run_mode;// 디버깅 등을 위해 이전 상태 업데이트
     }
 
     switch (run_mode)  // 3) run_mode에 따른 출력
@@ -809,239 +701,354 @@ void control_logic_step(void)
         default:
             break;
     }
+    
 }
 
 /////////////////////////////////////////////////////////////////////////
 //고장 검출 함수
 /////////////////////////////////////////////////////////////////////////
-
-int check_drop_PWMcurrent(uint32_t prev_val, uint32_t cur)
-{
-
-	return (cur * 100) <= (prev_val * 70);
-}
-
 void check_Fault(void)
 {
-	uint8_t Max_count_LED = 60;
+    uint8_t Max_count_LED = 60;
 
-	GPIO_PinState Read_Main_power = HAL_GPIO_ReadPin(Main_Volt_detecto_GPIO_Port, Main_Volt_detecto_Pin);
+    // 전압 없으면 판정은 하지 않음
+    if (flag_Mainvolt_detected == FALSE) return;
+    if (flag_check_fault == FALSE) return;
+    if (!current_ready) return;
 
-	static uint32_t prev_cur_first  = 0;
-	static uint32_t prev_cur_second = 0;
+    // 안정화 기간엔 판정만 멈춤 (failcount/기준은 리셋하지 않음)
+    if (flag_system_stabilizing == TRUE)
+    {
+        flag_check_fault = FALSE; 
+        return;
+    }
 
-	if(Read_Main_power == HIGH && flag_check_fault == FALSE) return;
-	else if(Read_Main_power == HIGH && flag_check_fault == TRUE) return;
+    flag_check_fault = FALSE;
 
+    // ===== (2) run_mode별 고장 판정 =====
+    if (run_mode == MODE_FIRST_ACTIVE)
+    {
+        HAL_GPIO_WritePin(RUN_LED_GPIO_Port, RUN_LED_Pin, GPIO_PIN_SET);
 
-	flag_check_fault = FALSE;
+        
+        if (fault_latch_1 == 0 && LED1_failcount == 0)
+        {
+            if (peak_first == 0 || measured_PWM_Cur > peak_first)    peak_first = (uint32_t)measured_PWM_Cur;
+        }
 
+        uint32_t ref = (fault_latch_1 != 0) ? fault_ref_1 : peak_first;
 
-	if(run_mode == MODE_FIRST_ACTIVE )
-	{
+        if (ref > 0 && (measured_PWM_Cur * 100u <= (ref * 70u) || measured_PWM_Cur * 100u >= (ref * 130u)))
+        {
+            // 고장 의심 시작 순간: 기준을 "현재 peak_first"로 동결
+            
+            if (fault_latch_1 == 0)
+            {
+              fault_latch_1 = 1;
+              fault_ref_1 = peak_first;   // 직전 정상 기준을 동결
+              if (fault_ref_1 == 0) fault_ref_1 = (uint32_t)measured_PWM_Cur; 
+              ref = fault_ref_1;
+            }
 
-		if(check_drop_PWMcurrent(prev_cur_first, measured_PWM_Cur))//(measured_PWM_Cur <= THRESHOLD_FIRST_MIN)
-		{
-			if(LED1_failcount<0xff) LED1_failcount++;
+            if (LED1_failcount < 0xFF) LED1_failcount++;
 
-			if(LED1_failcount > Max_count_LED)
-			{
-				run_mode = MODE_SECOND_ACTIVE;
-				mode_owner   = MODE_OWNER_AUTO;
-				hold_until_ms = HAL_GetTick() + HOLD_MS_AFTER_FAILOVER;  // 스위치 무시 기간
-				//flag_LED1_Fail = TRUE;
-				LED1_failcount = 60;
-			}
+            if (LED1_failcount > Max_count_LED) // 약 3초
+            {
+                run_mode = MODE_SECOND_ACTIVE;
+                mode_owner = MODE_OWNER_AUTO;
 
-		}
-		else LED1_failcount = 0;
-		prev_cur_first = measured_PWM_Cur;
-		return;
+                hold_until_ms = HAL_GetTick() + HOLD_MS_AFTER_FAILOVER;
 
-	}
+                g_autofault_latched = TRUE;
+                flag_LED1_fail = TRUE;
 
+                LED1_failcount = Max_count_LED;
+                current_ready = 0;
 
-	else if(run_mode == MODE_SECOND_ACTIVE)
-	{
+                // 1계 기준/래치 초기화 (절체 후에는 2계 기준을 새로 잡아야 함)
+                peak_first = 0;
+                fault_latch_1 = 0;
+                fault_ref_1 = 0;
+            }
 
-		if(measured_PWM_Cur <= check_drop_PWMcurrent(prev_cur_second, measured_PWM_Cur))//(measured_PWM_Cur <= THRESHOLD_SECOND_MIN)
-		{
-			if(LED2_failcount<0xff) LED2_failcount++;
+        }
+        else
+        {
+            // 정상이라면 failcount 리셋 + latch 해제 + 동결 기준 해제
+            LED1_failcount = 0;
+            fault_latch_1 = 0;
+            fault_ref_1 = 0;
+            flag_LED1_fail = FALSE;
+        }
+    }
 
-			if(LED2_failcount > 60)
-			{
-				run_mode = MODE_FAULT;
-				flag_Fail		= TRUE;
-				//flag_LED2_Fail 	= TRUE;
-				LED2_failcount 	= 60;
-			}
+    else if (run_mode == MODE_SECOND_ACTIVE)
+    {
+        HAL_GPIO_WritePin(RUN_LED_GPIO_Port, RUN_LED_Pin, GPIO_PIN_SET);
+    
+        if (mode_owner == MODE_OWNER_AUTO) HAL_GPIO_WritePin(FAULT_LED_GPIO_Port, FAULT_LED_Pin, GPIO_PIN_RESET); // ON 
+        else if (mode_owner == MODE_OWNER_SWITCH) HAL_GPIO_WritePin(FAULT_LED_GPIO_Port, FAULT_LED_Pin, GPIO_PIN_SET);   // OFF
 
-		}
-		else LED2_failcount = 0;
-		prev_cur_second = measured_PWM_Cur;
-		return;
+        // peak 갱신은 latch가 없고 failcount가 0일 때만
+        if (fault_latch_2 == 0 && LED2_failcount == 0)
+        {
+            if (peak_second < 10 || measured_PWM_Cur > peak_second)  peak_second = (uint32_t)measured_PWM_Cur;
+        }
 
+        uint32_t ref = (fault_latch_2 != 0) ? fault_ref_2 : peak_second;
 
-	}
+        if (ref > 0 && (measured_PWM_Cur * 100u <= (ref * 70u) || measured_PWM_Cur * 100u >= (ref * 130u)))
+        {
+            if (fault_latch_2 == 0)
+            {
+                fault_latch_2 = 1;
+                fault_ref_2 = peak_second;
+                if (fault_ref_2 == 0) fault_ref_2 = (uint32_t)measured_PWM_Cur; // 최후 보호
+                ref = fault_ref_2;
+            }
+
+            if (LED2_failcount < 0xFF) LED2_failcount++;
+
+            if (LED2_failcount > Max_count_LED)
+            {
+                run_mode = MODE_FAULT;
+                mode_owner = MODE_OWNER_AUTO;
+
+                flag_LED2_fail = TRUE;
+                LED2_failcount = Max_count_LED;
+
+                current_ready = 0;
+                peak_second = 0;
+                // FAULT 진입 이후 latch 유지/해제는 의미가 적지만, 정리 차원에서 리셋
+                fault_latch_2 = 0;
+                fault_ref_2 = 0;
+            }
+        }
+        else
+        {
+            LED2_failcount = 0;
+            fault_latch_2 = 0;
+            fault_ref_2 = 0;
+            flag_LED2_fail = FALSE;
+        }
+    }
 
 }
 
 
 void Fail_setup(void)
 {
+
 	if(run_mode == MODE_FAULT)
-	{
-		HAL_GPIO_WritePin(Fault_Relay_Control_GPIO_Port, Fault_Relay_Control_Pin, GPIO_PIN_RESET);
+	{ 
 
+    HAL_GPIO_WritePin(Fault_Relay_Control_GPIO_Port, Fault_Relay_Control_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(MCU_CONTROL_PWR_GPIO_Port, MCU_CONTROL_PWR_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(First_LED_GPIO_Port,  First_LED_Pin,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(Second_LED_GPIO_Port, Second_LED_Pin, GPIO_PIN_SET);
 
+	  
+    HAL_GPIO_WritePin(FAULT_LED_GPIO_Port, FAULT_LED_Pin, GPIO_PIN_RESET);
 
+    if(set_pinup.R_active != HIGH)
+    {
+      HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_3);
+    }
+    
 	}
-
+  else return;
+ 
+ 
 }
-
-
-
 
 /////////////////////////////////////////////////////////////////////////
-//ADC 변환 함수
+//PWM 함수
 //////////////////////////////////////////////////////////////////////////
-uint16_t get_PWM_cur_Value(void)
+void update_system_PWM(void)
 {
-	return measured_PWM_Cur;
-}
+    uint32_t final_pwm;
+     // 이전 온도 상태를 기억하기 위한 정적 변수
+    static bool is_temp_high = FALSE;
 
-uint16_t get_TEMP_Value(void)
-{
-	return measured_TEMP_Val;
-}
-
-uint16_t get_CDS_Value(void)
-{
-	return measured_CDS_Val;
-}
-
-uint16_t get_DC_Value(void)
-{
-	return measured_DC_Val;
-}
+    // CDS 상태 판단
+    if (flag_override_pwm == TRUE) return; 
+    
+    set_PWM_by_CDSvalue();
 
 
-void put_PWM_current_Value(void)
-{
-
-    if (flag_measure_current == FALSE)
+    if (current_state == CDS_NIGHT )
     {
-        return;  // 250us 주기로 TRUE로 세워줘야 함
+      final_pwm = PWM_fourty_duty_cycle;  //40% 듀티
+
+      if (flag_Mainvolt_detected == TRUE)
+      {
+        HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2); 
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 12);
+      }
+      else HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+    
+    } 
+    else
+    {
+      final_pwm = PWM_seventy_duty_cycle;
+      HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
     }
 
 
-	converted_value_tx_currnet = adc_dma_values[ADC_CH_C_IDX];
+    if (measured_TEMP_Val >= 70)
+    {   
+        // 70도 이상인 순간에만 플래그 발생
+        if (is_temp_high == FALSE)
+        {
+            flag_change_Temp = TRUE;
+            is_temp_high = TRUE;
+        }
+        final_pwm = PWM_half_duty_cycle; // 50% 듀티로 하강
 
-	_average_max_sampling += converted_value_tx_currnet;
-	_count_sampling_tx_current++;
-
-
-    if (_count_sampling_tx_current >= 4000)
+    }
+    else 
     {
+        // 다시 70도 이하로 복구되는 순간에도 플래그 발생
+        if (is_temp_high == TRUE)
+        {
+            flag_change_Temp = TRUE;
+            is_temp_high = FALSE;
+        }
+    }
+    
 
-        _average_max_sampling_cur = (uint32_t)(_average_max_sampling / _count_sampling_tx_current);
-
-        // 전류 (12-bit, 0~4095)
-        _voltage_Level_tx_current = (float)((_average_max_sampling_cur * 3.3f) / 4095.0f);
-        // 2. 하드웨어 상수
-        const float SHUNT_RESISTOR_OHM = 7.8f;
-        const float OP_AMP_GAIN = 7.8f;
-        const float SENSE_DIVIDER = OP_AMP_GAIN * SHUNT_RESISTOR_OHM; // 예: 20 * 0.1 = 2.0
-
-        // 3. 전압(V)을 전류(A)로 변환
-        float current_in_Amps = _voltage_Level_tx_current / SENSE_DIVIDER;
-
-        // 4. 단위를 밀리암페어(mA)로 변환하여 저장
-        if(current_in_Amps != 0)measured_PWM_Cur = (unsigned int)(current_in_Amps * 10000.0f)+75;
-        else measured_PWM_Cur = 0;
-
-        // 창 리셋
-        _average_max_sampling = 0u;
-		_count_sampling_tx_current = 0u;
+    // CDS 변경 직후 안정화 기간 동안은 즉시 출력
+    if (flag_change_CDS_Val == TRUE) 
+    {
+        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, final_pwm);
+        return; 
     }
 
-	flag_measure_current = FALSE;
-
-
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, final_pwm); // 출력
 }
 
-static inline int16_t roundi(float x) { return (int16_t)(x >= 0.f ? x + 0.5f : x - 0.5f); }
-
-void put_Temp_Value(void)
+void set_PWM_by_CDSvalue(void)
 {
+  if(flag_check_input == FALSE) return;
+  flag_check_input = FALSE;
 
-	if(FALSE == flag_measure_temp)
-	{
-		return;
-	}
+  static uint8_t stable_count = 0; 
+  uint8_t new_candidate = (measured_CDS_Val > 650) ? CDS_DAY : CDS_NIGHT;
+  
 
-	flag_measure_temp = FALSE;
+  // 1. 현재 확정된 상태와  다를 때만 로직 가동
+  if (new_candidate != current_state) 
+  {
+    // 2. 바뀌었는지 체크 (채터링 방지)
+    if (new_candidate != candidate_state)
+    {
+      candidate_state = new_candidate;
+      stable_count = 0; 
+      test4 =0;
+    }
+    else 
+    {
+      stable_count++; 
+      test4++;
+      if (stable_count >= 5) // 5번 유지 시(5초)
+      {
+        current_state = candidate_state; // 상태 확정
+        flag_change_CDS_Val = TRUE;      // 플래그 발생 (딱 한 번만)
+       
+        stable_count = 0;                // 카운트 초기화
+      }
 
+    }
+  }
 
-	converted_value_temper = (uint32_t)adc_dma_values[ADC_CH_TEMP_IDX];
-
-	temper_measure_sum += converted_value_temper;
-	count_measure_temper++;
-
-	if(count_measure_temper >= 30)
-	{
-
-		_averageTemp_max_sampling = (uint32_t)(temper_measure_sum/count_measure_temper);
-
-		_voltage_Level_temp = (float)((_averageTemp_max_sampling * 3.3f) / 4095.0f);
-		 int16_t t = roundi( (_voltage_Level_temp - 0.5f) * 100.0f );
-		if (t < -40) t = -40;
-		if (t > 150) t = 150;
-		measured_TEMP_Val = (int16_t)t;
-
-		//measured_TEMP_Val = (_voltage_Level_temp * 40); // 섭씨 온도로 변환
-
-		temper_measure_sum 	 = 0;
-		count_measure_temper = 0;
-
-	}
+  else 
+  {
+    // 입력값이 현재 상태와 같으면 카운트와 후보군 초기화 (아무것도 안 함)
+    flag_change_CDS_Val = FALSE;
+    candidate_state = current_state;
+    stable_count = 0;
+  }
 
 }
 
-void put_CDS_value(void)
+void check_System_Stability(void)
 {
+    uint32_t now = HAL_GetTick();
+    static bool last_volt_state = true; // 이전 전압 상태 저장용
+    static uint16_t prev_DC_Val = 0;
+    uint16_t dc = measured_DC_Val;
 
-	if(FALSE == flag_measure_CDS)
-	{
-		return;
-	}
+    // 1. 전압이 복구되는 시점 감지 (FALSE -> TRUE)
+    if (flag_Mainvolt_detected == TRUE && last_volt_state == FALSE)
+    {
+        flag_system_stabilizing = TRUE;
+        stability_start_ms = now;
+      
+    }
+    
+    last_volt_state = flag_Mainvolt_detected;
 
-	flag_measure_CDS = FALSE;
+    // 2. 기존 CDS/온도 변경 시 안정화 로직
+    if ((flag_change_CDS_Val == TRUE || flag_change_Temp == TRUE) && flag_system_stabilizing == FALSE)
+    {
+        flag_system_stabilizing = TRUE;
+        peak_first = 0; 
+        peak_second = 0;
+        stability_start_ms = now;
+    }
 
-	converted_value_cds = (uint32_t)adc_dma_values[ADC_CH_CDS_IDX];
-
-	CDS_measure_sum += converted_value_cds;
-	count_measure_CDS++;
-
-	if(count_measure_CDS >= 100)
-	{
-		_averageCds_max_sampling = (uint32_t)(CDS_measure_sum/count_measure_CDS);
-
-		_voltage_Level_CDS = (float)(_averageCds_max_sampling * 3.3f)/4095.0f;
-
-		measured_CDS_Val = (unsigned int)(_voltage_Level_CDS * 10000);
-
-		count_measure_CDS = 0;
-		CDS_measure_sum = 0;
-
-	}
-
-
+    if ( (dc > prev_DC_Val && (dc - prev_DC_Val) >= 3) || (prev_DC_Val > dc && (prev_DC_Val - dc) >= 3) )
+    {
+        prev_DC_Val = measured_DC_Val;
+        peak_first = 0; 
+        peak_second = 0;
+        flag_system_stabilizing = TRUE;
+        stability_start_ms = now;
+    }
+    // 3. 5초 유예 관리
+    if (flag_system_stabilizing == TRUE)
+    {
+        if ((uint32_t)(now - stability_start_ms) >= 5000)
+        {
+            flag_system_stabilizing = FALSE;
+            flag_change_CDS_Val = FALSE;
+            flag_change_Temp = FALSE;
+        }
+    }
+ 
+  
 }
+
 
 /////////////////////////////////////////////////////////////////////////
 //통신 함수
 //////////////////////////////////////////////////////////////////////////
+/* CRC16-CCITT 계산 함수
+   Polynomial: 0x1021
+   Initial value: 0xFFFF
+   Final XOR: 0x0000
+*/
+static uint16_t crc16_ccitt(const uint8_t *data, uint16_t len)
+{
+  uint16_t crc = 0xFFFF;  // 초기값
+  uint16_t i, j;
+
+  for (i = 0; i < len; i++)
+  {
+    crc ^= ((uint16_t)data[i] << 8);
+    for (j = 0; j < 8; j++)
+    {
+      if (crc & 0x8000)
+        crc = (crc << 1) ^ 0x1021;
+      else
+        crc = crc << 1;
+      crc &= 0xFFFF;  // 16비트 유지
+    }
+  }
+
+  return crc;
+}
+
 uint16_t POW(uint16_t a, uint16_t b)
 {
 	uint16_t i, pow = 1;
@@ -1054,53 +1061,130 @@ uint16_t POW(uint16_t a, uint16_t b)
 void transmit(void)
 {
 	uint8_t i;
+  uint8_t sw_code = 0;
 
 	if(flag_transmit == FALSE) return;
   
 	flag_transmit = FALSE;
-  
 
-  if(run_mode == MODE_FIRST_ACTIVE)       LED_status = 0x01;
-  else if(run_mode == MODE_SECOND_ACTIVE) LED_status = 0x02;
-  else if(run_mode == MODE_FAULT)         LED_status = 0x03;
+  if(set_pinup.signalling_active == HIGH)            card_setup = 0x01;
+  else if(set_pinup.shunting_active == HIGH)         card_setup = 0x02;
+  else if(set_pinup.unguide_active == HIGH)          card_setup = 0x03;
 
-  if(set_pinup.shunting_active == HIGH)                 card_setup = 0x01;
-  else if(set_pinup.unguide_active == HIGH)             card_setup = 0x02;
-  else if(set_pinup.signalling_active == HIGH)          card_setup = 0x03;
-
-  if(set_pinup.R_active == HIGH && set_pinup.G_active == LOW)             LED_setup = 0x01;
-  else if(set_pinup.G_active == HIGH && set_pinup.R_active == LOW)        LED_setup = 0x02;
+  if(set_pinup.R_active == LOW && set_pinup.G_active == HIGH)             LED_setup = 0x01;
+  else if(set_pinup.G_active == LOW && set_pinup.R_active == HIGH)        LED_setup = 0x02;
   else if(set_pinup.y_on == HIGH)                                         LED_setup = 0x03;
   else if(set_pinup.y1_on == HIGH)                                        LED_setup = 0x04;
 
+  if(current_state == CDS_DAY)        day_night_status = 0x01;
+  else if(current_state == CDS_NIGHT)  day_night_status = 0x02;
 
 
-	transmit_buf[0] = 0x02;
-	transmit_buf[1]	= DATA_FRAME_SIZE;
-	transmit_buf[2] = 0x11;
-	transmit_buf[3] = 0x14;
-	transmit_buf[4] = 0x45;
+  if ( g_manual_switchover_event == FALSE || mode_owner == MODE_OWNER_AUTO)
+  {
+      sw_code = (0x01 % 10) + '0';              
+  }
+  if ( g_manual_switchover_event == TRUE && mode_owner == MODE_OWNER_SWITCH)
+  {
+      sw_code = (0x02 % 10) + '0';              //수동취급    
+  } 
+
+
+  transmit_buf[0] = 0x02;
+
+  uint8_t frame_len = (uint8_t)(sizeof(transmit_buf) / sizeof(transmit_buf[0]));
+  transmit_buf[1] = frame_len;
+
+  static uint16_t tx_sequence = 0;
+  tx_sequence++;
+
+  transmit_buf[2] = (uint8_t)((tx_sequence >> 8) & 0xFF);
+  transmit_buf[3] = (uint8_t)(tx_sequence & 0xFF);
+	transmit_buf[4] = OP_CODE;
 
   
   for(i=0; i<3; i++)
   {
-    transmit_buf[5+i] = (measured_PWM_Cur / POW(10, 2-i)) % 10 + '0';
+    transmit_buf[5+i] = (measured_DC_Val / POW(10, 2-i)) % 10 + '0';
   }
   for(i=0; i<3; i++)
   {
-    transmit_buf[8+i] = (measured_TEMP_Val / POW(10, 2-i)) % 10 + '0';
+    transmit_buf[8+i] = (measured_PWM_Cur/ POW(10, 2-i)) % 10 + '0';
   }
-  transmit_buf[11] = (LED_status)%10 + '0';
-  transmit_buf[12] = (card_setup)%10 + '0';
-  transmit_buf[13] = (LED_setup) %10 + '0';
 
-	transmit_buf[14]= 0x88;
-	transmit_buf[15]= 0x88;
-	transmit_buf[16]= 0x03;
+  int16_t tmp = measured_TEMP_Val;
+  if (tmp < 0)
+  {
+    int16_t absval = (int16_t)(-tmp);
+    if (absval > 99) absval = 99; 
+    transmit_buf[11] = (0x01%10) + '0'; // '-'
+    transmit_buf[12] = (absval / 10) % 10 + '0';
+    transmit_buf[13] = (absval % 10) + '0';
+  }
+  else
+  {
+    int16_t val = tmp;
+    if (val > 999) val = 999; 
+    transmit_buf[11] = (val / 100) % 10 + '0';
+    transmit_buf[12] = (val / 10) % 10 + '0';
+    transmit_buf[13] = (val % 10) + '0';
+  }
+  
 
 
-	HAL_UART_Transmit_IT(&huart1, transmit_buf, 17);
+
+  if (run_mode == MODE_FIRST_ACTIVE)                                  LDE_card_status = 0x01;
+  else if (run_mode == MODE_SECOND_ACTIVE && flag_LED1_fail == FALSE) LDE_card_status = 0x02; 
+  else if (run_mode == MODE_SECOND_ACTIVE && flag_LED1_fail == TRUE)  LDE_card_status = 0x03; //1계 고장 → 2계 자동 절체 
+  else if (run_mode == MODE_FAULT)                                    LDE_card_status = 0x04; // 완전 고장 
+ 
+
+  transmit_buf[14] = (LDE_card_status % 10) + '0';
+
+  transmit_buf[15] = (card_setup)%10 + '0';
+  transmit_buf[16] = (LED_setup) %10 + '0';
+  transmit_buf[17] = (day_night_status)%10 +'0';
+  transmit_buf[18] = sw_code;
+
+  if(flag_Mainvolt_detected == TRUE)  transmit_buf[19] = (0x02 % 10) + '0';
+  else                                transmit_buf[19] = (0x01 % 10) + '0';
+
+  // CRC16-CCITT 계산 (bytes [0..13] 대상)
+  uint16_t crc_val = crc16_ccitt(transmit_buf, 20);
+  transmit_buf[20] = (uint8_t)((crc_val >> 8) & 0xFF);  // CRC MSB
+  transmit_buf[21] = (uint8_t)(crc_val & 0xFF);         // CRC LSB
+  transmit_buf[22] = END_CODE;
+
+	HAL_UART_Transmit_IT(&huart1, transmit_buf, 23);
 	count_TX_timeout = 0;
+
+}
+
+
+void OnUart_Recv (uint8_t ch)
+{
+	static uint8_t i=0;
+	static uint8_t buf[8];
+
+  if(i>8) i=0;
+	
+	buf[i] = ch;
+
+	if(buf[i++] == 0x03)
+	{
+		memcpy(receive_buf,buf,i);
+		memset(buf,0x00,8);	
+		i=0;
+	}
+
+}
+
+
+
+void data_receive_timeoutControl(void)
+{
+  if(count_RX_timeout >= 3000)memset(&receive_buf, 0x00, 8);
+  if(count_TX_timeout >= 3000) memset(&transmit_buf, 0x00, 17);
 
 }
 /////////////////////////////////////////////////////////////////////////
@@ -1191,6 +1275,7 @@ void display_maked_fnd_data (const char* numstring, uint8_t* bufptr, unsigned in
 		memcpy (bufptr, fnd, min(bufsize, max));
 	}
 }
+
 void fnd_write (unsigned int select, uint8_t fndvalue)
 {
 	uint16_t portd_value = 0; //FND9~FND15 //PD0~PE7
@@ -1210,14 +1295,13 @@ void fnd_write (unsigned int select, uint8_t fndvalue)
 	porte_value  |= fndvalue << 8;             // ★ << 8
 	LL_GPIO_WriteOutputPort(GPIOE, (ReadValue_portE & 0x00ff) | porte_value);
 
-	for (i=0;i<0x10;i++);
-//	GpioD->DATA = GpioD->DATA & 0xff00;
-	LL_GPIO_WriteOutputPort(GPIOD,(ReadValue_portD & 0xff00));	//FND9~FND15 clear
 
-//	GpioE->DATA = GpioE->DATA & 0x807f;
+	for (i=0;i<0x10;i++);
+	LL_GPIO_WriteOutputPort(GPIOD,(ReadValue_portD & 0xff00));	//FND9~FND15 clear
 	LL_GPIO_WriteOutputPort(GPIOE,(ReadValue_portE & 0x00ff));	//FND0~FND8 clear
 
 }
+
 //-----------------------------------------------------------------------
 void fnd_output_data(const unsigned int id, const uint8_t* bufptr, unsigned int bufsize)
 {
@@ -1226,7 +1310,6 @@ void fnd_output_data(const unsigned int id, const uint8_t* bufptr, unsigned int 
 	switch (id)
 	{
 		case  0: for (i=0;i<bufsize;i++) { fnd_write(FND_CH_00(1<<i),bufptr[i]); } break;
-
 	}
 
 }
@@ -1235,32 +1318,20 @@ void fnd_output_data(const unsigned int id, const uint8_t* bufptr, unsigned int 
 void output_fnd_display(void)
 {
 	fnd_output_data (0, _fnd0, 4);
-	//fnd_output_data (1, _fnd1, 4);
+	
 }
 
 
 void make_fnd_data (void)
 {
-	//-----------------------------------------------------------------------
-	if (FALSE ==_flag_make_display_data)	//500ms �ֱ�
-	{
-		return;
-	}
 
-	_flag_make_display_data = FALSE;
-	//-----------------------------------------------------------------------
 	char first_line   [5]  = {0,};
-
-
-
 	uint16_t  PWM_current;
 
 	PWM_current = get_PWM_cur_Value();
 
 	sprintf(first_line ,"%d", PWM_current);
-
 	display_maked_fnd_data   (first_line,  _fnd0, 5);
-
 
 
 }
@@ -1314,21 +1385,15 @@ int main(void)
   while (1)
   {
 
-    if(run_mode != MODE_FAULT) HAL_GPIO_TogglePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin);
-    else HAL_GPIO_WritePin(MCU_to_WATCHDOG_INPUT_GPIO_Port, MCU_to_WATCHDOG_INPUT_Pin,SET);
-
-    put_PWM_current_Value();
-    put_Temp_Value();
-
-    make_fnd_data();
-  
-    //check_Fault();
+    update_system_PWM();
+    check_System_Stability();
+    check_Fault();
+    
     control_logic_step();
-    //Fail_setup();
-    mv_qualifier_tick();
 
-    //transmit();
+    Fail_setup();
 
+    transmit();
 
 
 
@@ -1549,9 +1614,14 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 125;
+  sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.Pulse = 125;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
     Error_Handler();
@@ -1629,7 +1699,7 @@ static void MX_TIM5_Init(void)
   htim5.Instance = TIM5;
   htim5.Init.Prescaler = 72-1;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 50-1;
+  htim5.Init.Period = 25-1;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
@@ -1669,7 +1739,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 19200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -1717,8 +1787,8 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -1728,11 +1798,12 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(MCU_CONTROL_PWR_GPIO_Port, MCU_CONTROL_PWR_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, FND1_Pin|FND2_Pin|FND3_Pin|FND4_Pin
-                          |FND5_Pin|FND6_Pin|FND7_Pin|FND8_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, FAULT_LED_Pin|RUN_LED_Pin|CUR_CON2_Pin|CUR_CON1_Pin
+                          |MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, CUR_CON2_Pin|CUR_CON1_Pin|CUR_CON0_Pin|MCU_to_WATCHDOG_INPUT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, FND1_Pin|FND2_Pin|FND3_Pin|FND4_Pin
+                          |FND5_Pin|FND6_Pin|FND7_Pin|FND8_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, FNDA_Pin|FNDB_Pin|FNDC_Pin, GPIO_PIN_RESET);
@@ -1752,6 +1823,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : FAULT_LED_Pin RUN_LED_Pin */
+  GPIO_InitStruct.Pin = FAULT_LED_Pin|RUN_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : FND1_Pin FND2_Pin FND3_Pin FND4_Pin
                            FND5_Pin FND6_Pin FND7_Pin FND8_Pin */
   GPIO_InitStruct.Pin = FND1_Pin|FND2_Pin|FND3_Pin|FND4_Pin
@@ -1761,8 +1839,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CUR_CON2_Pin CUR_CON1_Pin CUR_CON0_Pin MCU_to_WATCHDOG_INPUT_Pin */
-  GPIO_InitStruct.Pin = CUR_CON2_Pin|CUR_CON1_Pin|CUR_CON0_Pin|MCU_to_WATCHDOG_INPUT_Pin;
+  /*Configure GPIO pins : CUR_CON2_Pin CUR_CON1_Pin MCU_to_WATCHDOG_INPUT_Pin */
+  GPIO_InitStruct.Pin = CUR_CON2_Pin|CUR_CON1_Pin|MCU_to_WATCHDOG_INPUT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
